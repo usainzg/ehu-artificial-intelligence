@@ -96,51 +96,26 @@ def depthFirstSearch(problem):
     print("Start's successors:", problem.getSuccessors(problem.getStartState()))
     """
     "*** YOUR CODE HERE ***"
-    path = Path([problem.getStartState()], [], 0)
-
-    if problem.isGoalState(path.coordinates[0]):
-        return path.moves
-    
     stack = util.Stack()
-    stack.push(path)
-
-    while not stack.isEmpty():
-        curPath = stack.pop()
-        curCoord = curPath.coordinates[-1]
-
-        if problem.isGoalState(curCoord):
-            return curPath.moves
-
-        nextSteps = problem.getSuccessors(curCoord)
-        for n in nextSteps:
-            nextCoord = n[0]
-            nextMove = n[1]
-            nextCost = n[2]
-            if nextCoord not in curPath.coordinates:
-                nextCoords = curPath.coordinates[:]
-                nextCoords.append(nextCoord)
-                nextMoves = curPath.moves[:]
-                nextMoves.append(nextMove)
-                nextCosts = curPath.cost + nextCost
-                nextPath = Path(nextCoords, nextMoves, nextCosts)
-                stack.push(nextPath)
-    return []
-
+    return generic_search(problem, stack)
 
 
 def breadthFirstSearch(problem):
     """Search the shallowest nodes in the search tree first."""
     "*** YOUR CODE HERE ***"
+    queue = util.Queue()
+    return generic_search(problem, queue)
+
+def generic_search(problem, fringe):
     path = Path([problem.getStartState()], [], 0)
 
     if problem.isGoalState(path.coordinates[0]):
         return path.moves
     
-    queue = util.Queue()
-    queue.push(path)
+    fringe.push(path)
 
-    while not queue.isEmpty():
-        curPath = queue.pop()
+    while not fringe.isEmpty():
+        curPath = fringe.pop()
         curCoord = curPath.coordinates[-1]
 
         if problem.isGoalState(curCoord):
@@ -158,7 +133,7 @@ def breadthFirstSearch(problem):
                 nextMoves.append(nextMove)
                 nextCosts = curPath.cost + nextCost
                 nextPath = Path(nextCoords, nextMoves, nextCosts)
-                queue.push(nextPath)
+                fringe.push(nextPath)
     return []
 
 def uniformCostSearch(problem):
