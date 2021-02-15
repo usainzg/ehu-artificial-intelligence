@@ -123,9 +123,7 @@ def generic_search(problem, fringe):
 
         nextSteps = problem.getSuccessors(curCoord)
         for n in nextSteps:
-            nextCoord = n[0]
-            nextMove = n[1]
-            nextCost = n[2]
+            nextCoord, nextMove, nextCost = n
             if nextCoord not in curPath.coordinates:
                 nextCoords = curPath.coordinates[:]
                 nextCoords.append(nextCoord)
@@ -139,7 +137,33 @@ def generic_search(problem, fringe):
 def uniformCostSearch(problem):
     """Search the node of least total cost first."""
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    fringe = util.PriorityQueue()
+    path = Path([problem.getStartState()], [], 0)
+
+    if problem.isGoalState(path.coordinates[0]):
+        return path.moves
+    
+    fringe.update(path, 0)
+
+    while not fringe.isEmpty():
+        curPath = fringe.pop()
+        curCoord = curPath.coordinates[-1]
+
+        if problem.isGoalState(curCoord):
+            return curPath.moves
+
+        nextSteps = problem.getSuccessors(curCoord)
+        for n in nextSteps:
+            nextCoord, nextMove, nextCost = n
+            if nextCoord not in curPath.coordinates:
+                nextCoords = curPath.coordinates[:]
+                nextCoords.append(nextCoord)
+                nextMoves = curPath.moves[:]
+                nextMoves.append(nextMove)
+                nextCosts = curPath.cost + nextCost
+                nextPath = Path(nextCoords, nextMoves, nextCosts)
+                fringe.update(nextPath, nextCosts)
+    return []
 
 def nullHeuristic(state, problem=None):
     """
