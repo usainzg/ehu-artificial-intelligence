@@ -107,10 +107,8 @@ def breadthFirstSearch(problem):
     return generic_search(problem, queue)
 
 def generic_search(problem, fringe):
+    visited = []
     path = Path([problem.getStartState()], [], 0)
-
-    if problem.isGoalState(path.coordinates[0]):
-        return path.moves
     
     fringe.push(path)
 
@@ -120,16 +118,18 @@ def generic_search(problem, fringe):
 
         if problem.isGoalState(curCoord):
             return curPath.moves
-
-        nextSteps = problem.getSuccessors(curCoord)
-        for n in nextSteps:
-            nextCoord, nextMove, nextCost = n
-            if nextCoord not in curPath.coordinates:
+        
+        if not curCoord in visited:
+            visited.append(curCoord)
+            for nextCoord, nextMove, nextCost in problem.getSuccessors(curCoord):
                 nextCoords = curPath.coordinates[:]
                 nextCoords.append(nextCoord)
+                
                 nextMoves = curPath.moves[:]
                 nextMoves.append(nextMove)
+                
                 nextCosts = curPath.cost + nextCost
+
                 nextPath = Path(nextCoords, nextMoves, nextCosts)
                 fringe.push(nextPath)
     return []
@@ -138,12 +138,13 @@ def uniformCostSearch(problem):
     """Search the node of least total cost first."""
     "*** YOUR CODE HERE ***"
     fringe = util.PriorityQueue()
+    visited = []
     path = Path([problem.getStartState()], [], 0)
 
     if problem.isGoalState(path.coordinates[0]):
         return path.moves
     
-    fringe.update(path, 0)
+    fringe.push(path, 0)
 
     while not fringe.isEmpty():
         curPath = fringe.pop()
@@ -151,18 +152,20 @@ def uniformCostSearch(problem):
 
         if problem.isGoalState(curCoord):
             return curPath.moves
-
-        nextSteps = problem.getSuccessors(curCoord)
-        for n in nextSteps:
-            nextCoord, nextMove, nextCost = n
-            if nextCoord not in curPath.coordinates:
+        
+        if not curCoord in visited:
+            visited.append(curCoord)
+            for nextCoord, nextMove, nextCost in problem.getSuccessors(curCoord):
                 nextCoords = curPath.coordinates[:]
                 nextCoords.append(nextCoord)
+                
                 nextMoves = curPath.moves[:]
                 nextMoves.append(nextMove)
+                
                 nextCosts = curPath.cost + nextCost
+
                 nextPath = Path(nextCoords, nextMoves, nextCosts)
-                fringe.update(nextPath, nextCosts)
+                fringe.push(nextPath, nextCosts)
     return []
 
 def nullHeuristic(state, problem=None):
@@ -175,7 +178,36 @@ def nullHeuristic(state, problem=None):
 def aStarSearch(problem, heuristic=nullHeuristic):
     """Search the node that has the lowest combined cost and heuristic first."""
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    fringe = util.PriorityQueue()
+    visited = []
+    path = Path([problem.getStartState()], [], 0)
+
+    if problem.isGoalState(path.coordinates[0]):
+        return path.moves
+    
+    fringe.push(path, 0)
+
+    while not fringe.isEmpty():
+        curPath = fringe.pop()
+        curCoord = curPath.coordinates[-1]
+
+        if problem.isGoalState(curCoord):
+            return curPath.moves
+        
+        if not curCoord in visited:
+            visited.append(curCoord)
+            for nextCoord, nextMove, nextCost in problem.getSuccessors(curCoord):
+                nextCoords = curPath.coordinates[:]
+                nextCoords.append(nextCoord)
+                
+                nextMoves = curPath.moves[:]
+                nextMoves.append(nextMove)
+                
+                nextCosts = curPath.cost + nextCost
+
+                nextPath = Path(nextCoords, nextMoves, nextCosts)
+                fringe.push(nextPath, nextCosts + heuristic(nextCoord, problem))
+    return []
 
 
 # Abbreviations
