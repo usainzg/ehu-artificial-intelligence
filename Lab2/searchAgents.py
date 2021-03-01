@@ -369,10 +369,28 @@ def cornersHeuristic(state, problem):
     admissible (as well as consistent).
     """
     corners = problem.corners # These are the corner coordinates
-    walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
+    # walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
 
     "*** YOUR CODE HERE ***"
-    return 0 # Default to trivial solution
+    c_p1, c_p2, c_p3, c_p4 = corners # posicion de los corners
+    pos, c1, c2, c3, c4 = state # info del estado
+    x, y = pos # coordenadas
+
+    """
+    Heuristico:
+    - Hacemos la diferencia (en valor absoluto) de las coordenadas
+    de los corners (solo los no visitados => cx sea False, para visitados... devolvemos 0) 
+    y las del estado.
+    - Sumamos las diferencias (en valor absoluto) por cada cada corner.
+    - Devolvemos la suma mayor de entre las diferencias.
+    """
+    d1 = 0 if c1 else (abs(c_p1[0]-x) + abs(c_p1[1]-y)) # cero si corner visitado, heuristico si no
+    d2 = 0 if c2 else (abs(c_p2[0]-x) + abs(c_p2[1]-y))
+    d3 = 0 if c3 else (abs(c_p3[0]-x) + abs(c_p3[1]-y))
+    d4 = 0 if c4 else (abs(c_p4[0]-x) + abs(c_p4[1]-y))
+
+    return max([d1, d2, d3, d4])
+
 
 class AStarCornersAgent(SearchAgent):
     "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
