@@ -142,7 +142,6 @@ class MinimaxAgent(MultiAgentSearchAgent):
     """
     Your minimax agent (question 2)
     """
-
     def getAction(self, gameState):
         """
         Returns the minimax action from the current gameState using self.depth
@@ -167,7 +166,49 @@ class MinimaxAgent(MultiAgentSearchAgent):
         Returns whether or not the game state is a losing state
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        g_i = [i for i in range(1, gameState.getNumAgents())]
+        inf = float("inf")
+
+        """
+        Paramos si... return True
+        - Estamos en => (Estado ganador || Estado perdedor || Limite de profundidad)
+        Si no... return False
+        """
+        def stop(state, cDepth):
+            return True if (state.isWin() or state.isLose() or cDepth == self.depth) else False
+
+        def minValue(state, d, ghost):
+            if stop(state, d):
+                return self.evaluationFunction(state)
+            
+            v = inf
+            for a in state.getLegalActions(ghost):
+                if ghost == g_i[-1]: # si es ultimo ghost, siguiente nivel, cambiamos a maxValue()
+                    v = min(v, maxValue(state.generateSuccessor(ghost, a), d + 1))
+                else: # si no es ultimo ghost, seguimos explorando ese nivel
+                    v = min(v, minValue(state.generateSuccessor(ghost, a), d, ghost + 1))
+            return v
+        
+        def maxValue(state, d):
+            if stop(state, d):
+                return self.evaluationFunction(state)
+            
+            v = -inf
+            for a in state.getLegalActions(0):
+                v = max(v, minValue(state.generateSuccessor(0, a), d, 1))
+            return v
+
+        """
+        Por cada accion legal... rellenamos con duplas (accion, val_minValue).
+        - val_minValue realiza la llamada recursiva.
+        """
+        sol = [(a, minValue(gameState.generateSuccessor(0, a), 0, 1)) for a in gameState.getLegalActions(0)]
+        sol = sorted(sol, key=lambda k: k[1], reverse=True) # ordenamos por el valor
+        # Aqui sol contiene la (accion, valor) con mayor valor como primer elemento
+        return sol[0][0] # devolvemos la primera accion => accion con mayor valor
+
+
+
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
