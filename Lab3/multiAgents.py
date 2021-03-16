@@ -69,12 +69,44 @@ class ReflexAgent(Agent):
         # Useful information you can extract from a GameState (pacman.py)
         successorGameState = currentGameState.generatePacmanSuccessor(action)
         newPos = successorGameState.getPacmanPosition()
-        newFood = successorGameState.getFood()
+        newFood = successorGameState.getFood().asList()
         newGhostStates = successorGameState.getGhostStates()
         newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
 
         "*** YOUR CODE HERE ***"
-        return successorGameState.getScore()
+        ghost_pos = [(G.getPosition()[0], G.getPosition()[1]) for G in newGhostStates]
+        new_scared = min(newScaredTimes) > 0
+        cur_food_list = currentGameState.getFood().asList()
+
+        """
+        Si no hay nuevos ScaredTimes => nuevo estado es fantasma, -1.0
+        """
+        if not new_scared and (newPos in ghost_pos):
+            return -1.0
+
+        if newPos in cur_food_list:
+            return 1.0
+        
+        closest_food = 99999999
+        for f in newFood:
+            d = util.manhattanDistance(newPos, f)
+            if d < closest_food:
+                closest_food = d
+
+        closest_ghost = 99999999
+        for g in ghost_pos:
+            d = util.manhattanDistance(newPos, g)
+            if d < closest_ghost:
+                closest_ghost = d
+        
+        """
+        - Cuanto mas CERCA esta la comida => numero mayor.
+        - Cuanto mas LEJOS el fantasma => numero menor.
+        - Se busca maximizar la resta, por lo tanto, 
+        si al comida cerca y si el fantasma lejos... mejor puntuacion.
+        """
+        return 1.0 / closest_food - 1.0 / closest_ghost
+
 
 def scoreEvaluationFunction(currentGameState):
     """
