@@ -220,7 +220,68 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         Returns the minimax action using self.depth and self.evaluationFunction
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        g_i = [i for i in range(1, gameState.getNumAgents())]
+        inf = float("inf")
+
+        def stop(state, cDepth):
+            return True if (state.isWin() or state.isLose() or cDepth == self.depth) else False
+
+        def minValue(state, d, ghost, alpha, beta):
+            if stop(state, d):
+                return self.evaluationFunction(state)
+            
+            v = inf
+            for a in state.getLegalActions(ghost):
+                if ghost == g_i[-1]: # si es ultimo ghost, siguiente nivel, cambiamos a maxValue()
+                    v = min(v, maxValue(state.generateSuccessor(ghost, a), d + 1, alpha, beta))
+                else: # si no es ultimo ghost, seguimos explorando ese nivel
+                    v = min(v, minValue(state.generateSuccessor(ghost, a), d, ghost + 1, alpha, beta))
+            
+                if v < alpha:
+                    return v
+            
+                beta = min(beta, v)
+            
+            return v
+        
+        def maxValue(state, d, alpha, beta):
+            if stop(state, d):
+                return self.evaluationFunction(state)
+            
+            v = -inf
+            for a in state.getLegalActions(0):
+                v = max(v, minValue(state.generateSuccessor(0, a), d, 1, alpha, beta))
+            
+                if v > beta:
+                    return v
+            
+                alpha = max(alpha, v)
+            
+            return v
+
+        def alphaBeta(state):
+            res = (None, -inf)
+            alpha = -inf
+            beta = inf
+            
+            for a in state.getLegalActions(0):
+                val = minValue(gameState.generateSuccessor(0, a), 0, 1, alpha, beta)
+
+                if res[1] < val:
+                    res = (a, val)
+                
+                if res[1] > beta:
+                    return res[1]
+                
+                alpha = max(alpha, val)
+            
+            return res[0]
+
+        def pruningAlphaBeta(state):
+            return alphaBeta(state)
+        
+        return pruningAlphaBeta(gameState)
+
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
     """
