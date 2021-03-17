@@ -18,6 +18,8 @@ import random, util
 
 from game import Agent
 
+inf = float("inf")
+
 class ReflexAgent(Agent):
     """
     A reflex agent chooses an action at each choice point by examining
@@ -137,6 +139,9 @@ class MultiAgentSearchAgent(Agent):
         self.index = 0 # Pacman is always agent index 0
         self.evaluationFunction = util.lookup(evalFn, globals())
         self.depth = int(depth)
+    
+    def stop(self, state, cDepth):
+            return True if (cDepth == self.depth or state.isWin() or state.isLose()) else False
 
 class MinimaxAgent(MultiAgentSearchAgent):
     """
@@ -167,21 +172,19 @@ class MinimaxAgent(MultiAgentSearchAgent):
         """
         "*** YOUR CODE HERE ***"
         g_i = [i for i in range(1, gameState.getNumAgents())]
-        inf = float("inf")
 
         """
         Paramos si... return True
         - Estamos en => (Estado ganador || Estado perdedor || Limite de profundidad)
         Si no... return False
         """
-        def stop(state, cDepth):
-            return True if (state.isWin() or state.isLose() or cDepth == self.depth) else False
 
         def minValue(state, d, ghost):
-            if stop(state, d):
+            v = inf
+
+            if self.stop(state, d):
                 return self.evaluationFunction(state)
             
-            v = inf
             for a in state.getLegalActions(ghost):
                 if ghost == g_i[-1]: # si es ultimo ghost, siguiente nivel, cambiamos a maxValue()
                     v = min(v, maxValue(state.generateSuccessor(ghost, a), d + 1))
@@ -190,10 +193,11 @@ class MinimaxAgent(MultiAgentSearchAgent):
             return v
         
         def maxValue(state, d):
-            if stop(state, d):
+            v = -inf
+
+            if self.stop(state, d):
                 return self.evaluationFunction(state)
             
-            v = -inf
             for a in state.getLegalActions(0):
                 v = max(v, minValue(state.generateSuccessor(0, a), d, 1))
             return v
@@ -207,30 +211,23 @@ class MinimaxAgent(MultiAgentSearchAgent):
         # Aqui sol contiene la (accion, valor) con mayor valor como primer elemento
         return sol[0][0] # devolvemos la primera accion => accion con mayor valor
 
-
-
-
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
     Your minimax agent with alpha-beta pruning (question 3)
     """
-
     def getAction(self, gameState):
         """
         Returns the minimax action using self.depth and self.evaluationFunction
         """
         "*** YOUR CODE HERE ***"
         g_i = [i for i in range(1, gameState.getNumAgents())]
-        inf = float("inf")
-
-        def stop(state, cDepth):
-            return True if (state.isWin() or state.isLose() or cDepth == self.depth) else False
 
         def minValue(state, d, ghost, alpha, beta):
-            if stop(state, d):
+            v = inf
+
+            if self.stop(state, d):
                 return self.evaluationFunction(state)
             
-            v = inf
             for a in state.getLegalActions(ghost):
                 if ghost == g_i[-1]: # si es ultimo ghost, siguiente nivel, cambiamos a maxValue()
                     v = min(v, maxValue(state.generateSuccessor(ghost, a), d + 1, alpha, beta))
@@ -241,14 +238,14 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
                     return v
             
                 beta = min(beta, v)
-            
             return v
         
         def maxValue(state, d, alpha, beta):
-            if stop(state, d):
+            v = -inf
+
+            if self.stop(state, d):
                 return self.evaluationFunction(state)
             
-            v = -inf
             for a in state.getLegalActions(0):
                 v = max(v, minValue(state.generateSuccessor(0, a), d, 1, alpha, beta))
             
@@ -256,7 +253,6 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
                     return v
             
                 alpha = max(alpha, v)
-            
             return v
 
         def alphaBeta(state):
@@ -274,14 +270,12 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
                     return res[1]
                 
                 alpha = max(alpha, val)
-            
             return res[0]
 
         def pruningAlphaBeta(state):
             return alphaBeta(state)
         
         return pruningAlphaBeta(gameState)
-
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
     """
@@ -296,7 +290,37 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
         legal moves.
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        g_i = [i for i in range(1, gameState.getNumAgents())]
+
+        def maxValue(state, d):
+            v = -inf
+            if self.stop(state, d):
+                return self.evaluationFunction(state)
+            
+            for a in state.getLegalActions(0):
+                v = max(v, expectedValue(state.generateSuccessor(0, a), d, 1))
+            return v
+        
+        def expectedValue(state, d, ghost):
+            v = 0
+
+            if self.stop(state, d):
+                return self.evaluationFunction(state)
+            
+            n = len(state.getLegalActions(ghost))
+            prob = 1 / n
+
+            for a in state.getLegalActions(ghost):
+                if ghost == g_i[-1]:
+                    v += prob * maxValue(state.generateSuccessor(ghost, a), d + 1)
+                else:
+                    v += prob * expectedValue(state.generateSuccessor(ghost, a), d, ghost + 1)
+            return v
+        
+        sol = [(a, expectedValue(gameState.generateSuccessor(0, a), 0, 1)) for a in gameState.getLegalActions(0)]
+        sol = sorted(sol, key=lambda k: k[1], reverse=True) # ordenamos por el valor
+        # Aqui sol contiene la (accion, valor) con mayor valor como primer elemento
+        return sol[0][0] # devolvemos la primera accion => accion con mayor valor
 
 def betterEvaluationFunction(currentGameState):
     """
