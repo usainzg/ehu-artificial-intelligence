@@ -14,6 +14,8 @@
 
 from util import manhattanDistance
 from game import Directions
+import search
+import searchAgents
 import random, util
 
 from game import Agent
@@ -330,7 +332,41 @@ def betterEvaluationFunction(currentGameState):
     DESCRIPTION: <write something here so we know what you did>
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    
+    """
+    Para calcular la funcion de evaluacion, realizamos la suma (weighted),
+    de los siguientes valores:
+    - Puntuacion actual.
+    - Posicion de los fantasmas.
+    - Posicion de las capsulas.
+    - Posicion de la comida y numero de comida restante.
+    """
+    new_pos = currentGameState.getPacmanPosition()
+    new_ghost_states = currentGameState.getGhostStates()
+    new_food = currentGameState.getFood().asList()
+    num_food = currentGameState.getNumFood()
+    new_capsules = currentGameState.getCapsules()
+    cur_score = currentGameState.getScore()
+    
+    closest_ghost_distance = inf
+    ghost_score = 0
+
+    for g in new_ghost_states:
+        sc = g.scaredTimer
+        d = manhattanDistance(g.getPosition(), new_pos)
+        if sc == 0:
+            if d < closest_ghost_distance:
+                closest_ghost_distance = d
+        elif sc > d:
+            ghost_score += 150 - d
+    
+    closest_ghost_distance = 0 if closest_ghost_distance == inf else closest_ghost_distance
+    ghost_score += closest_ghost_distance
+    
+    new_food_sorted = sorted(new_food, key=lambda p: manhattanDistance(p, new_pos))
+    closest_food_distance = manhattanDistance(new_food_sorted[0], new_pos) if len(new_food_sorted) > 0 else 0
+
+    return cur_score - 15 * num_food + ghost_score + 2 * len(new_capsules) - 2 * closest_food_distance
 
 # Abbreviation
 better = betterEvaluationFunction
