@@ -14,8 +14,6 @@
 
 from util import manhattanDistance
 from game import Directions
-import search
-import searchAgents
 import random, util
 
 from game import Agent
@@ -31,8 +29,6 @@ class ReflexAgent(Agent):
     it in any way you see fit, so long as you don't touch our method
     headers.
     """
-
-
     def getAction(self, gameState):
         """
         You do not need to change this method, but you're welcome to.
@@ -283,7 +279,6 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
     """
       Your expectimax agent (question 4)
     """
-
     def getAction(self, gameState):
         """
         Returns the expectimax action using self.depth and self.evaluationFunction
@@ -332,19 +327,10 @@ def betterEvaluationFunction(currentGameState):
     DESCRIPTION: <write something here so we know what you did>
     """
     "*** YOUR CODE HERE ***"
-    
-    """
-    Para calcular la funcion de evaluacion, realizamos la suma (weighted),
-    de los siguientes valores:
-    - Puntuacion actual.
-    - Posicion de los fantasmas.
-    - Posicion de las capsulas.
-    - Posicion de la comida y numero de comida restante.
-    """
     new_pos = currentGameState.getPacmanPosition()
     new_ghost_states = currentGameState.getGhostStates()
     new_food = currentGameState.getFood().asList()
-    num_food = currentGameState.getNumFood()
+    num_food = len(new_food)
     new_capsules = currentGameState.getCapsules()
     cur_score = currentGameState.getScore()
     
