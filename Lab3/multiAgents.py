@@ -324,7 +324,33 @@ def betterEvaluationFunction(currentGameState):
     Your extreme ghost-hunting, pellet-nabbing, food-gobbling, unstoppable
     evaluation function (question 5).
 
-    DESCRIPTION: <write something here so we know what you did>
+    DESCRIPTION:
+    - Pesos de factores:
+        - Puntuacion actual: 1
+        - Numero de comidas restantes: 15
+        - Puntuacion fantasmas: 1
+        - Capsulas restantes: 2
+        - Comida mas cercana: 2
+    - Funcionamiento:
+        - Puntuacion fantasmas:
+            - Para cada fantasma:
+                - Calcular la distancia de la posicion del pacman
+                al fantasma.
+                - Obtener el scaredTimer del fanstama (movimiento restantes como asustado).
+                - Si no asustado (sc == 0), actualizamos la distancia minima (closest...) anterior si
+                la distancia actual es menor.
+                - Si sc > d, es decir, le queda mas movimientos como asustado que la distancia al
+                fantasma, puntuar con (150 - d).
+                - En otro caso, puntuar pero menos (40 - d) => mejora?
+            - Actualizar la distancia minima a fantasmas (closest...), si seguimos con el inf (valor inicial),
+            lo ponemos a 0, si no, dejamos el valor actual (minimo).
+            - Sumamos a la puntuacion anterior la distancia minima.
+        - Puntuacion comida mas cercana:
+            - Ordenamos el array de posiciones de la comida en base a la distancia de cada elemento,
+            es decir, se ordena en base a la distancia (manhattan). El primer elemento sera el que 
+            tenga una distancia menor.
+            - Si hay comidas restantes, calculamos la distancia y lo guardamos en la variable closest_food...
+                
     """
     "*** YOUR CODE HERE ***"
     new_pos = currentGameState.getPacmanPosition()
@@ -345,6 +371,8 @@ def betterEvaluationFunction(currentGameState):
                 closest_ghost_distance = d
         elif sc > d:
             ghost_score += 150 - d
+        else:
+            ghost_score += 40 - d # mejora?
     
     closest_ghost_distance = 0 if closest_ghost_distance == inf else closest_ghost_distance
     ghost_score += closest_ghost_distance
