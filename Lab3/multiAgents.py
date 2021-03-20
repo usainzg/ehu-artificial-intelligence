@@ -176,7 +176,6 @@ class MinimaxAgent(MultiAgentSearchAgent):
         - Estamos en => (Estado ganador || Estado perdedor || Limite de profundidad)
         Si no... return False
         """
-
         def minValue(state, d, ghost):
             v = inf
 
@@ -254,7 +253,7 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
             return v
 
         def alphaBeta(state):
-            res = (None, -inf)
+            res = (None, -inf) # Accion, valor
             alpha = -inf
             beta = inf
             
@@ -262,13 +261,13 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
                 val = minValue(gameState.generateSuccessor(0, a), 0, 1, alpha, beta)
 
                 if res[1] < val:
-                    res = (a, val)
+                    res = (a, val) # actualizar con (accion, valor)
                 
                 if res[1] > beta:
-                    return res[1]
+                    return res[1] # devolver valor
                 
                 alpha = max(alpha, val)
-            return res[0]
+            return res[0] # devolver accion
 
         def pruningAlphaBeta(state):
             return alphaBeta(state)
@@ -305,7 +304,7 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
                 return self.evaluationFunction(state)
             
             n = len(state.getLegalActions(ghost))
-            prob = 1 / n
+            prob = 1 / n # probabilidad para calcular el valor del expected value
 
             for a in state.getLegalActions(ghost):
                 if ghost == g_i[-1]:
@@ -330,7 +329,7 @@ def betterEvaluationFunction(currentGameState):
         - Numero de comidas restantes: 15
         - Puntuacion fantasmas: 1
         - Capsulas restantes: 2
-        - Comida mas cercana: 2
+        - Comida mas cercana: 1.5
     - Funcionamiento:
         - Puntuacion fantasmas:
             - Para cada fantasma:
@@ -380,7 +379,7 @@ def betterEvaluationFunction(currentGameState):
     new_food_sorted = sorted(new_food, key=lambda p: manhattanDistance(p, new_pos))
     closest_food_distance = manhattanDistance(new_food_sorted[0], new_pos) if len(new_food_sorted) > 0 else 0
 
-    return cur_score - 15 * num_food + ghost_score + 2 * len(new_capsules) - 2 * closest_food_distance
+    return cur_score - 15 * num_food + ghost_score + 2 * len(new_capsules) - 1.5 * closest_food_distance
 
 # Abbreviation
 better = betterEvaluationFunction
