@@ -15,6 +15,7 @@
 # Mira implementation
 import util
 PRINT = True
+inf = float('inf')
 
 class MiraClassifier:
     """
@@ -61,7 +62,70 @@ class MiraClassifier:
         representing a vector of values.
         """
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        weights = {}
+        def train_c(c):
+            '''
+            Restablecemos los pesos
+            '''
+            self.weights = dict((label, util.Counter()) for label in self.legalLabels)
+            
+            '''
+            Realizamos tantas iteraciones como este especificado en self.max_iterations.
+            '''
+            for i in range(self.max_iterations):
+                '''
+                Para cada features (x) y labels (y)...
+                '''
+                for x, y in zip(trainingData, trainingLabels):
+                    y_p = self.classify([x])[0]
+                    '''
+                    Si el label devuelto por self.classify() no es el mismo que el label
+                    real, (y)... actualizar.
+                    '''
+                    if y != y_p:
+                        t = ((self.weights[y_p] - self.weights[y]) * x + 1.0) / (2.0 * (x * x))
+                        tau = min([c, t])
+                        '''
+                        Actualizamos los pesos:
+                        -> wY = wY + tF
+                        -> wY' = wY' - tF
+                        Donde t:
+                        -> t = min(c, tAux)
+                        -> tAux = ((wY' - wY) * f + 1.0) / (2.0 * (f * f))
+                        '''
+                        x_copy = x.copy()
+                        for key, value in x_copy.items():
+                            x_copy[key] = value * tau # (tF)
+                        
+                        self.weights[y] += x_copy
+                        self.weights[y_p] -= x_copy
+
+            weights[c] = self.weights
+            res = 0
+            for y, y_p in zip(validationLabels, self.classify(validationData)):
+                if y == y_p:
+                    res += 1 # Si bien clasificado... sumar
+            return res # Devolver numero de bien clasificados
+        
+        
+        '''
+        Ejecutamos train_c() con todos los c en Cgrid.
+        '''
+        scores = [train_c(c) for c in Cgrid]
+
+        '''
+        Tenemos que elegir cual es el mejor c, es decir, el que mejores resultados no ha dado,
+        o en caso de empate, el c menor.
+        '''
+        c_aux, aux_score = Cgrid[0], -inf
+        for c, c_score in zip(Cgrid, scores):
+            if (c_score > aux_score) or (c_score == aux_score and c < c_aux):
+                c_aux, aux_score = c, c_score
+
+        self.weights = weights[c_aux] # Pesos con el mejor c -> Mejores pesos
+        self.C = c_aux
+        return c_aux
+
 
     def classify(self, data ):
         """
