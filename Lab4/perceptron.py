@@ -32,8 +32,8 @@ class PerceptronClassifier:
             self.weights[label] = util.Counter() # this is the data-structure you should use
 
     def setWeights(self, weights):
-        assert len(weights) == len(self.legalLabels);
-        self.weights = weights;
+        assert len(weights) == len(self.legalLabels)
+        self.weights = weights
 
     def train( self, trainingData, trainingLabels, validationData, validationLabels ):
         """
@@ -46,19 +46,24 @@ class PerceptronClassifier:
         datum is a counter from features to values for those features
         (and thus represents a vector a values).
         """
-
         self.features = trainingData[0].keys() # could be useful later
         # DO NOT ZERO OUT YOUR WEIGHTS BEFORE STARTING TRAINING, OR
         # THE AUTOGRADER WILL LIKELY DEDUCT POINTS.
         counter = util.Counter()
 
         for iteration in range(self.max_iterations):
-            print "Starting iteration ", iteration, "..."
             for i in range(len(trainingData)):
                 for label in self.legalLabels:
                     counter[label] = trainingData[i].__mul__(self.weights[label])
                 
-                if trainingLabels[i] != counter.argMax():
+                y = trainingLabels[i] # Label correcta
+                y_p = counter.argMax() # Label "guessed" / predecida?
+                if y != y_p:
+                    '''
+                    Actualizacion de pesos:
+                    -> wY = wY + f
+                    -> wY' = wY' - f
+                    '''
                     self.weights[trainingLabels[i]].__radd__(trainingData[i])
                     self.weights[counter.argMax()].__sub__(trainingData[i])
                 

@@ -45,9 +45,22 @@ class PerceptronClassifierPacman(PerceptronClassifier):
         self.features = trainingData[0][0]['Stop'].keys() # could be useful later
         # DO NOT ZERO OUT YOUR WEIGHTS BEFORE STARTING TRAINING, OR
         # THE AUTOGRADER WILL LIKELY DEDUCT POINTS.
-
+        '''
+        Mismo procedimiento que en el perceptron de la pregunta 1,
+        pero en este caso no actualizamos dos pesos diferentes, sino
+        una variable de pesos compartido tanto para "buenas" accciones,
+        como para "malas" acciones.
+        '''
         for iteration in range(self.max_iterations):
-            print "Starting iteration ", iteration, "..."
             for i in range(len(trainingData)):
-                "*** YOUR CODE HERE ***"
-                util.raiseNotDefined()
+                data = trainingData[i]
+                y_p = self.classify([data])[0] # Label "guessed" / predecida?
+                y = trainingLabels[i] # Label correcta
+                if y_p != y:
+                    ''' 
+                    Actualizacion de la variable compartida:
+                    -> w = w + f(s, a)
+                    -> w = w - f(s, a')
+                    '''
+                    self.weights += data[0][y]
+                    self.weights -= data[0][y_p]
