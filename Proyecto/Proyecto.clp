@@ -34,7 +34,7 @@
 
 (deffunction mostrar_tablero ($?f)
 	(printout t ?f crlf)
-))
+)
 
 (defrule inicializar_tablero
     ?i <- (init_tipo ?tipo)    
@@ -69,39 +69,67 @@
 )
 
 (deffunction mover (?fich $?f)
-	(printout t "=> Moviendo..." crlf)
-	(printout t "=> Tu ficha: " ?fich crlf)
+	; De donde...
+	(printout t "=> Donde se encuentra la ficha? " crlf)
 	(printout t "==> Fila: " crlf)
-	(bind ?fila (read))
+	(bind ?fila_actual (read))
 	(printout t "==> Columna: " crlf) 
-	(bind ?col (read))
-	(printout t "==> Quieres mover... fila: " ?fila " col: " ?col crlf)
+	(bind ?col_actual (read))
+	(printout t "==> Quieres mover... fila: " ?fila_actual " col: " ?col_actual crlf)
 	
+	(bind ?fila_sig (+ ?*dim_tablero* 1))
+	(bind ?col_sig (+ ?*dim_tablero* 1))
 	
-	(loop-for-count ()
+	; Comprobar coordenadas...
+	(while (not(and(< (- ?fila_sig 1) ?*dim_tablero*)(< (- ?col_sig 1) ?*dim_tablero*)))
+		; A donde...
+		(printout t "A donde quieres mover? " crlf)
+		(printout t "==> Fila: " crlf)
+		(bind ?fila_sig (read))
+		(printout t "==> Columna: " crlf) 
+		(bind ?col_sig (read))
+		(printout t "==> Siguiente... fila: " ?fila_sig " col: " ?col_sig crlf)
+	)
+	; Movimiento...
+	(bind ?i 1)
+	(bind ?LIM (length$ $?f))
 	
+	(while (< ?i ?LIM)
+		(bind ?f_i (nth$ ?i $?f))
+		(bind ?fil_i (nth$ (+ ?i 1) $?f))
+		(bind ?col_i (nth$ (+ ?i 2) $?f))
+		
+		(printout t "i: " ?i " fil_i: " ?fil_i " col_i: " ?col_i crlf)
+		
+		(if (and(eq ?fich ?f_i)(= ?fil_i ?fila_actual)(= ?col_i ?col_actual)) then
+			(bind ?nuevo (create$ ?fich ?fila_sig ?col_sig))
+			(printout t "nuevo: " ?nuevo crlf)
+			(bind $?f (replace$ $?f ?i (+ ?i 2) ?nuevo))
+			(printout t $?f crlf)
+			
+			(do-for-fact ((?tab tablero))(eq 1 1)
+				(modify ?tab (fichas $?f))
+			)	
+			(bind ?i ?LIM)
+		)
+		(bind ?i (+ ?i 3))
 	)
 )
 
 (defrule mover_per
     (tablero (fichas $?f))
-    (turno (jugador p) (p ?fich))
+    ?t <- (turno (jugador p) (p ?fich))
     =>
-    (printout t "=> Mueve persona" crlf)
+    (printout t "=> Mueve persona y ficha es " ?fich crlf)
     (mover ?fich $?f)
+    (modify ?t (jugador c))
 )
 
 (defrule mover_cpu
     (tablero (fichas $?f))
-    (turno (jugador c) (c ?fich))
+    ?t <- (turno (jugador c) (c ?fich))
     =>
-    (printout t "=> Mueve cpu" crlf)
+    (printout t "=> Mueve cpu y ficha es " ?fich crlf)
     (mover ?fich $?f)
+    (modify ?t (jugador p))
 )
-
-
-
-
-
-
-
