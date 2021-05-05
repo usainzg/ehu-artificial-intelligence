@@ -1,16 +1,20 @@
 (defglobal
-    ?*DIM* = 4
+    ?*DIM* = 4 ; Dimension del tablero, ej: 4 => 4x4
     ?*COLOR_JUG* = TRUE ; TRUE = blancas; FALSE = negras
     ?*TURNO* = TRUE ; TRUE = turno jugador; FALSE = turno cpu
-    ?*SYM_B* = "o"
-    ?*SYM_N* = "x"
-    ?*SYM_B_DAMA* = "O"
-    ?*SYM_N_DAMA* = "X"
-    ?*SYM_VACIO* = " "
-    ?*FICHA_PEON* = "P"
-    ?*FICHA_DAMA* = "D"
+    ?*SYM_B* = "o" ; Simbolo peon blancas
+    ?*SYM_B_DAMA* = "O" ; Simbolo dama blancas
+    ?*SYM_N* = "x" ; Simbolo peon negras
+    ?*SYM_N_DAMA* = "X" ; Simbolo dama negras
+    ?*SYM_VACIO* = " " ; Simbolo vacio
+    ?*FICHA_PEON* = "P" ; Tipo peon
+    ?*FICHA_DAMA* = "D" ; Tipo dama
+    ?*MOV_FORZADO* = FALSE ; Para indicar cuando comemos ("forzamos movimiento").
 )
 
+; Template para tablero, los multicampos en negras/blancas se definen:
+; => ("N11 N13") 
+; Dos peones (N) en (1, 1) y (1, 3).
 (deftemplate tablero
     (multislot negras)
     (multislot blancas)
@@ -36,8 +40,13 @@
     )
 )
 
-; crea una linea de fichas donde ?x e ?y son las
-; coordenadas de la primera ficha por la izquierda
+; Funcion auxiliar para anadir un elemento (?a) al final de un vector (?vector)
+(deffunction append_to_vector(?a $?vector)
+    (return (insert$ $?vector (+ 1 (length $?vector)) ?a))
+)
+
+; Funcion auxiliar que crea una linea de fichas para el tablero,
+; (?x, ?y) son la posicion de la primera ficha por la izquierda.
 (deffunction crear_linea (?x ?y)
     (bind ?res "")
     (bind ?res (str-cat ?*FICHA_PEON* ?x ?y))
@@ -49,7 +58,10 @@
     (return ?res)
 )
 
-; Dibuja el tablero
+; Funcion auxiliar para mostrar el tablero.
+; => Columna 0, Fila 0: se usan como indicadores (etiquetas).
+; => Se va mostrando el tablero de forma progresiva formando lineas y
+; "pintando" las fichas que hay en ?blancas y ?negras.
 (deffunction print_tablero (?blancas ?negras)
     (loop-for-count (?i 0 ?*DIM*)
         (bind ?linea "")
@@ -101,7 +113,9 @@
     )
 )
 
-; Crea el tablero inicial
+; Funcion auxiiar para crear el tablero inicial.
+; => ?lineas se refiere al numero de lineas con fichas inicial. Es decir, 
+; para un tablero de DIM=4... (4/2)-1 = 1 linea con fichas para cada color.
 (deffunction crear_tablero ()
     (bind ?negras "")
     (bind ?blancas "")
@@ -115,7 +129,8 @@
             (bind ?negras (str-cat ?negras (crear_linea 2 (- ?*DIM* ?i -1)) " "))
         )
     )
-    ; Cambiar las fichas a multicampos
+    
+    ; Cambiar las fichas de strings multicampos
     (bind ?negras (explode$ ?negras))
     (bind ?blancas (explode$ ?blancas))
 
@@ -125,6 +140,230 @@
 
     (assert(tablero (blancas ?blancas) (negras ?negras))) ; Introducimos tablero inicial
     (print_tablero ?blancas ?negras) ; Mostramos tablero inicial
+)
+
+; aplica el movimiento ?mov al tablero formado por ?blancas y ?negras
+; genera un nuevo par de vectores de blancas y negras y los utiliza
+; para crear un nuevo estado tablero
+; devuelve el identificador del nuevo estado
+(deffunction aplicar_movimiento(?blancas ?negras ?mov ?color)
+    (bind ?resultado (calcular_movimiento ?blancas ?negras ?mov ?color))
+    (bind ?index_separador (str-index "|" ?resultado))
+    (bind ?nuevas_blancas (explode$ (sub-string 1 (- ?index_separador 1) ?resultado)))
+    (bind ?nuevas_negras (explode$ (sub-string (+ ?index_separador 1) (length ?resultado) ?resultado)))
+    ; se crea el tablero con las nuevas piezas
+    (if (and ?*MOV_FORZADO* (not ?*CORONADO*)) then
+        ; si alguno de los movimientos ha sido forzado, hay posibilidad de que
+        ; haya m�s capturas posibles en el mism turno.
+        ; se hace un tablero_tmp para investigar
+        (bind ?long (length ?mov))
+        (bind ?pos_destino (sub-string (- ?long 1) ?long ?mov))
+        (return (assert (tablero_tmp (blancas ?nuevas_blancas) (negras ?nuevas_negras) (pieza_a_mover ?pos_destino))))
+    else
+        ; el turno se ha terminado. se crea el nuevo tablero
+        (cambiar_turno)
+        (return (assert (tablero (blancas ?nuevas_blancas) (negras ?nuevas_negras))))
+    )
+)
+
+; devuelve los posibles movimientos de una pieza normal
+; solamente se tiene en cuenta un salto, aunque sea posible hacer varios
+; direccion -> 1 si sube (blancas); -1 si baja (negras)
+; devuelve un multicampo en el que cada valor es un movimiento posible
+; cada movimiento viene en forma de string
+; si no se puede mover, el multicampo estar� vac�o
+; si el movimiento es simple (no se come) la string son solo las coordenadas del destino
+; > "24" (se mueve a (2,4))
+; si en el movimiento se captura a otra pieza, la string contiene las coordenadas
+; de la pieza capturada y del destino separadas por un espacio
+; > "35 46" (captura la pieza en (3,5) y se mueve a (4,6))
+(deffunction mov_pieza_normal(?x ?y ?direccion ?atacantes ?defendientes)
+    (bind ?mov (create$))
+    (bind ?posiciones (create$
+        (sym-cat (- ?x 1) (+ ?y ?direccion))
+        (sym-cat (+ ?x 1) (+ ?y ?direccion))))
+    ; miramos en las posiciones b�sicas
+    (foreach ?pos ?posiciones
+        (bind ?pos_x (string-to-field (sub-string 1 1 ?pos)))
+        (bind ?pos_y (string-to-field (sub-string 2 2 ?pos)))
+        ; comprobamos que est� dentro del tablero
+        (if (existe_pos ?pos_x ?pos_y) then
+            ; creamos las posibles piezas que podr�an estar en esa posici�n
+            (bind ?posibles_piezas (create$
+                (sym-cat ?*FICHA_PEON* ?pos_x ?pos_y)
+                (sym-cat ?*FICHA_DAMA* ?pos_x ?pos_y)))
+            (bind ?ocupada FALSE)
+            ; si hay alguna posible pieza enemiga
+            (foreach ?posible_pieza ?posibles_piezas
+                (if (item_in_vector ?posible_pieza ?defendientes) then
+                    (bind ?ocupada TRUE)
+                    (break)
+                )
+            )
+            (if ?ocupada then
+                ; se mira en la siguiente posici�n
+                (bind ?dif_x (- ?pos_x ?x))
+                (bind ?dif_y (- ?pos_y ?y))
+                (bind ?sig_pos_x (+ ?pos_x ?dif_x))
+                (bind ?sig_pos_y (+ ?pos_y ?dif_y))
+                ; comprobamos que est� dentro del tablero
+                (if (existe_pos ?sig_pos_x ?sig_pos_y) then
+                    ; creamos las posibles piezas que podr�an estar en esa posici�n
+                    (bind ?sig_posibles_piezas (create$
+                        (sym-cat ?*FICHA_PEON* ?sig_pos_x ?sig_pos_y)
+                        (sym-cat ?*FICHA_DAMA* ?sig_pos_x ?sig_pos_y)))
+                    (bind ?sig_ocupada FALSE)
+                    ; miramos si est� ocupada por alguna pieza
+                    (foreach ?sig_posible_pieza ?sig_posibles_piezas
+                        (if (or (item_in_vector ?sig_posible_pieza ?defendientes)
+                                (item_in_vector ?sig_posible_pieza ?atacantes)) then
+                            (bind ?sig_ocupada TRUE)
+                            (break)
+                        )
+                    )
+                    (if (not ?sig_ocupada) then
+                        ; la casilla est� vac�a
+                        ; se captura la pieza intermedia
+                        (if (not ?*MOV_FORZADO*) then
+                            ; si los movimientos anteriores no est�n forzados
+                            ; se vac�a la lista de movimientos
+                            (bind ?mov (create$))
+                            (bind ?*MOV_FORZADO* TRUE)
+                        )
+                        (bind ?mov (append_to_vector (str-cat
+                        ?pos_x ?pos_y " " ?sig_pos_x ?sig_pos_y) ?mov))
+                        ; else
+                            ; la casilla est� ocupada
+                            ; no se puede mover; no se hace nada
+                    )
+                )
+            ; si no est� en las enemigas
+            else
+                ; ni en las aliadas
+                (bind ?ocupada FALSE)
+                (foreach ?posible_pieza ?posibles_piezas
+                    (if (item_in_vector ?posible_pieza ?atacantes) then
+                        (bind ?ocupada TRUE)
+                        (break)
+                    )
+                )
+                (if (not ?ocupada) then
+                    ; movimiento normal
+                    ; se a�ade si no hay alg�n movimiento forzado
+                    (if (not ?*MOV_FORZADO*) then
+                        (bind ?mov (append_to_vector (str-cat ?pos_x ?pos_y) ?mov))
+                    )
+                )
+            )
+        )
+    )
+    (return ?mov)
+)
+
+; devuelve un multicampo en el que cada valor es una string representando
+; el movimiento de una pieza
+; en cada string, el primer valor son las coordenadas de la pieza
+; el �ltimo valor son las cordenadas a las que se mueve
+; y el valor intermedio (si lo hubiera) son las coordenadas de la
+; pieza que captura
+; solo se tiene en cuenta un salto en cada movimiento aunque pudiese
+; haber m�s
+; > ("13 24" "33 24" "33 44" "53 44" "53 64" "73 64" "73 84")
+(deffunction movimientos (?blancas ?negras ?juegan_blancas ?pieza_a_mover)
+    (bind ?*MOV_FORZADO* FALSE)
+    (if ?juegan_blancas then
+        (bind ?atacantes ?blancas)
+        (bind ?defendientes ?negras)
+        (bind ?direccion 1)
+    else
+        (bind ?atacantes ?negras)
+        (bind ?defendientes ?blancas)
+        (bind ?direccion -1)
+    )
+    (bind ?movimientos (create$))
+    (foreach ?pieza ?atacantes
+        (if (or (not ?pieza_a_mover) (eq (sub-string 2 3 ?pieza) ?pieza_a_mover)) then
+            (bind ?prev_forzado ?*MOV_FORZADO*)
+            (bind ?tipo (sub-string 1 1 ?pieza))
+            (bind ?x (string-to-field (sub-string 2 2 ?pieza)))
+            (bind ?y (string-to-field (sub-string 3 3 ?pieza)))
+            (if (eq ?tipo ?*FICHA_PEON*) then
+                (bind ?mov (mov_pieza_normal ?x ?y ?direccion ?atacantes ?defendientes))
+            )
+            (if (and ?*MOV_FORZADO* (not ?prev_forzado)) then
+                (bind ?movimientos (create$))
+                (bind ?prev_forzado ?*MOV_FORZADO*)
+            )
+            (if (eq ?prev_forzado ?*MOV_FORZADO*) then
+                (foreach ?m ?mov
+                    (bind ?mov_completo (str-cat ?x ?y " " ?m))
+                    (bind ?movimientos (append_to_vector ?mov_completo ?movimientos))
+                )
+            )
+        )
+    )
+
+    (return ?movimientos)
+)
+
+; Pregunta al jugador el movimiento que quiere realizar
+; devuelve una string que contiene las cordenadas de la pieza y las de
+; la casilla destino
+(deffunction pedir_mov (?blancas ?negras ?juegan_blancas ?pieza_a_mover)
+    (bind ?pos_mov (movimientos ?blancas ?negras ?juegan_blancas ?pieza_a_mover))
+    (while TRUE
+        (print_tablero ?blancas ?negras)
+
+        (bind ?escritos (create$))
+        (foreach ?mov ?pos_mov
+            (bind ?pos_origen (sub-string 1 2 ?mov))
+            (if (not (item_in_vector ?pos_origen ?escritos)) then
+                (printout t "| " ?pos_origen " ")
+                (bind ?escritos (append_to_vector ?pos_origen ?escritos))
+            )
+        )
+
+        (printout t crlf)
+        (printout t "Que pieza quieres mover? xy: ")
+        (bind ?pieza (str-cat (read)))
+
+        ; DEBUG => TODO: UNAI!!! borrar al acabar
+        (if (eq ?pieza "q") then
+            (assert (salir))
+            (return)
+        )
+
+        (if (eq (length ?pieza) 3) then
+            (bind ?pieza (str-cat (sub-string 1 1 ?pieza) (sub-string 3 3 ?pieza)))
+        )
+        (bind ?pieza_correcta FALSE)
+        (foreach ?mov ?pos_mov
+            (if (eq (sub-string 1 2 ?mov) ?pieza) then
+                (bind ?pieza_correcta TRUE)
+                (break)
+            )
+        )
+        (if ?pieza_correcta then
+            (foreach ?mov ?pos_mov
+                (if (eq (sub-string 1 2 ?mov) ?pieza) then
+                    (printout t "| " (sub-string (- (length ?mov) 1) (length ?mov) ?mov) " ")
+                )
+            )
+            (printout t crlf)
+            (printout t "�A que posici�n quieres moverla? xy: ")
+            (bind ?posicion (str-cat (read)))
+            (if (eq (length ?posicion) 3) then
+                (bind ?posicion (str-cat (sub-string 1 1 ?posicion) (sub-string 3 3 ?posicion)))
+            )
+            (foreach ?mov ?pos_mov
+                (bind ?long (length ?mov))
+                (if (and (eq (sub-string 1 2 ?mov) ?pieza)
+                    (eq (sub-string (- ?long 1) ?long ?mov) ?posicion)) then
+                    (return (str-cat ?mov))
+                )
+            )
+        )
+    )
 )
 
 (deffunction turno_jugador (?blancas ?negras ?color ?pieza_a_mover)
