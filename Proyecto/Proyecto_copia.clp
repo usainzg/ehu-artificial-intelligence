@@ -10,6 +10,7 @@
     ?*FICHA_PEON* = "P" ; Tipo peon
     ?*FICHA_DAMA* = "D" ; Tipo dama
     ?*MOV_FORZADO* = FALSE ; Para indicar cuando comemos ("forzamos movimiento").
+    ?*CORONADO* = FALSE ; Para indicar si un peon ha sido coronado (alcanza ultima fila del tablero).
 )
 
 ; Template para tablero, los multicampos en negras/blancas se definen:
@@ -142,78 +143,186 @@
     (print_tablero ?blancas ?negras) ; Mostramos tablero inicial
 )
 
-; aplica el movimiento ?mov al tablero formado por ?blancas y ?negras
-; genera un nuevo par de vectores de blancas y negras y los utiliza
-; para crear un nuevo estado tablero
-; devuelve el identificador del nuevo estado
-(deffunction aplicar_movimiento(?blancas ?negras ?mov ?color)
+; Funcion que calcula el tablero despues de haber realizado el movimiento ?mov.
+; => Devuelve las fichas blancas y negras separadas por "|".
+; Ejemplo: "N11 N22 | N24 N44".
+(deffunction calcular_movimiento(?blancas ?negras ?mov ?color )
+    (bind ?*CORONADO* FALSE)
+    (bind ?long (length ?mov))
+    (bind ?pos_origen (sub-string 1 2 ?mov))
+    (bind ?pos_destino (sub-string (- ?long 1) ?long ?mov))
+    (bind ?encontrada FALSE)
+
+    ; generalización de las listas de piezas en ?aliadas y ?enemigas
+    (if ?color then
+        (bind ?aliadas ?blancas)
+        (bind ?nuevas_aliadas ?blancas)
+        (bind ?enemigas ?negras)
+        (bind ?nuevas_enemigas ?negras)
+    else
+        (bind ?aliadas ?negras)
+        (bind ?nuevas_aliadas ?negras)
+        (bind ?enemigas ?blancas)
+        (bind ?nuevas_enemigas ?blancas)
+    )
+
+    (bind ?index 0)
+    ; iterar las aliadas buscando la pieza que se quiere mover
+    (loop-for-count (?i 1 (length$ ?aliadas))
+        (bind ?pieza (nth$ ?i ?aliadas))
+        (bind ?tipo (sub-string 1 1 ?pieza))
+        (bind ?pos (sub-string 2 3 ?pieza))
+        ; si las posiciones son iguales
+        (if (eq ?pos ?pos_origen) then
+            ; creamos la nueva pieza después de haber sido movida
+            (if (or (and ?color (= ?*DIM* (string-to-field (sub-string 2 2 ?pos_destino))))
+                    (and (not ?color) (= 1 (string-to-field (sub-string 2 2 ?pos_destino))))) then
+                
+                (if (eq ?tipo ?*PIEZA_NORMAL*) then
+                ; si la pieza llega al final del tablero y es un peón, se corona
+                    (bind ?tipo ?*DAMA*)
+                    (bind ?*CORONADO* TRUE)
+                )
+            )
+            (bind ?pieza_movida (sym-cat ?tipo ?pos_destino))
+            (bind ?encontrada TRUE)
+            ; guardamos el índice de la pieza
+            (bind ?index ?i)
+            (break)
+        )
+    )
+    (if ?encontrada then
+        ; si se ha encontrado, se reemplaza la pieza original por la movida
+        (bind ?nuevas_aliadas (replace$ ?aliadas ?index ?index ?pieza_movida))
+    else
+        ; si no se ha encontrado, se asume error y se sale del juego
+        (printout t ?mov " -> mov. no encontrado" crlf)
+        (halt)
+    )
+    (bind ?lista (explode$ ?mov))
+    (if (> (length$ ?lista) 2) then
+        (bind ?nuevas_enemigas ?enemigas)
+        (bind ?capturadas (subseq$ ?lista 2 (- (length$ ?lista) 1)))
+        (foreach ?capturada ?capturadas
+            (bind ?pos_capturada (str-cat ?capturada))
+            (bind ?encontrada FALSE)
+            (bind ?index 0)
+            ; iterar las enemigas buscando la pieza que se ha capturado
+            (loop-for-count (?i 1 (length$ ?nuevas_enemigas))
+                (bind ?pieza (nth$ ?i ?nuevas_enemigas))
+                (bind ?pos (sub-string 2 3 ?pieza))
+                ; si las posiciones son iguales
+                (if (eq ?pos_capturada ?pos) then
+                    (bind ?encontrada TRUE)
+                    ; guardamos el índice de la pieza
+                    (bind ?index ?i)
+                    (break)
+                )
+            )
+            (if ?encontrada then
+                ; si se ha encontrado, se elimina la pieza capturada de la lista
+                (bind ?nuevas_enemigas (delete$ ?nuevas_enemigas ?index ?index))
+            )
+        )
+    )
+    ; se recuperan los colores de las piezas
+    (if ?color then
+        (bind ?nuevas_blancas ?nuevas_aliadas)
+        (bind ?nuevas_negras ?nuevas_enemigas)
+    else
+        (bind ?nuevas_blancas ?nuevas_enemigas)
+        (bind ?nuevas_negras ?nuevas_aliadas)
+    )
+    (return (str-cat (implode$ ?nuevas_blancas) "|" (implode$ ?nuevas_negras)))
+)
+
+; Funcion que aplica el movimiento y crea dos nuevos multicampo ?blancas y ?negras,
+; crea un nuevo tablero a partir de estos dos nuevos vectores.
+; => Devuelve el identificador del nuevo tablero.
+(deffunction aplicar_movimiento (?blancas ?negras ?mov ?color)
+    ; Calculamos que pasaria si aplicamos el movimiento...
     (bind ?resultado (calcular_movimiento ?blancas ?negras ?mov ?color))
+    
+    ; Obtener el indice del separador de las blancas y negras.
     (bind ?index_separador (str-index "|" ?resultado))
+    
+    ; Obtenemos las nuevas fichas despues de realizar el movimiento.
     (bind ?nuevas_blancas (explode$ (sub-string 1 (- ?index_separador 1) ?resultado)))
     (bind ?nuevas_negras (explode$ (sub-string (+ ?index_separador 1) (length ?resultado) ?resultado)))
-    ; se crea el tablero con las nuevas piezas
+    
+    ; Creamos el tablero con las nuevas fichas.
     (if (and ?*MOV_FORZADO* (not ?*CORONADO*)) then
-        ; si alguno de los movimientos ha sido forzado, hay posibilidad de que
-        ; haya m�s capturas posibles en el mism turno.
-        ; se hace un tablero_tmp para investigar
+        ; Si hay ?*MOV_FORZADO* = TRUE, quizas se pueda seguir comiendo...
+        ; Creamos un tablero temporal y seguimos investigando.
         (bind ?long (length ?mov))
         (bind ?pos_destino (sub-string (- ?long 1) ?long ?mov))
         (return (assert (tablero_tmp (blancas ?nuevas_blancas) (negras ?nuevas_negras) (pieza_a_mover ?pos_destino))))
     else
-        ; el turno se ha terminado. se crea el nuevo tablero
+        ; No hay ?*MOV_FORZADO* = TRUE, por lo tanto... turno terminado.
+        ; Introducimos el nuevo tablero.
         (cambiar_turno)
         (return (assert (tablero (blancas ?nuevas_blancas) (negras ?nuevas_negras))))
     )
 )
 
-; devuelve los posibles movimientos de una pieza normal
-; solamente se tiene en cuenta un salto, aunque sea posible hacer varios
-; direccion -> 1 si sube (blancas); -1 si baja (negras)
-; devuelve un multicampo en el que cada valor es un movimiento posible
-; cada movimiento viene en forma de string
-; si no se puede mover, el multicampo estar� vac�o
-; si el movimiento es simple (no se come) la string son solo las coordenadas del destino
-; > "24" (se mueve a (2,4))
-; si en el movimiento se captura a otra pieza, la string contiene las coordenadas
-; de la pieza capturada y del destino separadas por un espacio
-; > "35 46" (captura la pieza en (3,5) y se mueve a (4,6))
-(deffunction mov_pieza_normal(?x ?y ?direccion ?atacantes ?defendientes)
+; Funcion que calcula los movimiento de un peon.
+; => Si el peon no se puede mover, devuelve multicampo vacio.
+; => Si el peon no come, devuelve solo casilla destino en forma de string. 
+; Ejemplo: ("22"), se mueve a (2, 2).
+; => Si el peon come, devuelve la casilla comida y la casilla destino.
+; Ejemplo: ("35 46"), se mueve a (4, 6) despues de comer (3, 5).
+(deffunction mov_peon (?x ?y ?direccion ?atacantes ?defendientes)
     (bind ?mov (create$))
+    
+    ; Posiciones posibles con la direccion segun color, -1 = abajo y 1 = arriba.
     (bind ?posiciones (create$
         (sym-cat (- ?x 1) (+ ?y ?direccion))
-        (sym-cat (+ ?x 1) (+ ?y ?direccion))))
-    ; miramos en las posiciones b�sicas
+        (sym-cat (+ ?x 1) (+ ?y ?direccion)))
+    )
+    
+    ; Entre las posiciones posibles calculadas...
     (foreach ?pos ?posiciones
+        ; Creamos ?pos_x y ?pos_y a partir de ?pos.
         (bind ?pos_x (string-to-field (sub-string 1 1 ?pos)))
         (bind ?pos_y (string-to-field (sub-string 2 2 ?pos)))
-        ; comprobamos que est� dentro del tablero
+        
+        ; Comprobamos si existe esa posicion en el tablero (cumple los limites).
         (if (existe_pos ?pos_x ?pos_y) then
-            ; creamos las posibles piezas que podr�an estar en esa posici�n
+            ; Creamos las posibles fichas que pueden estar en esa posicion,
+            ; puede haber una dama o un peon.
             (bind ?posibles_piezas (create$
                 (sym-cat ?*FICHA_PEON* ?pos_x ?pos_y)
-                (sym-cat ?*FICHA_DAMA* ?pos_x ?pos_y)))
+                (sym-cat ?*FICHA_DAMA* ?pos_x ?pos_y))
+            )
+            
             (bind ?ocupada FALSE)
-            ; si hay alguna posible pieza enemiga
+            ; Hay alguna ficha defendiente entre las posibles?
             (foreach ?posible_pieza ?posibles_piezas
                 (if (item_in_vector ?posible_pieza ?defendientes) then
                     (bind ?ocupada TRUE)
                     (break)
                 )
             )
+
+            ; Si hay defendiente... (comemos)
             (if ?ocupada then
-                ; se mira en la siguiente posici�n
+                ; Miramos en la siguiente posicion.
                 (bind ?dif_x (- ?pos_x ?x))
                 (bind ?dif_y (- ?pos_y ?y))
                 (bind ?sig_pos_x (+ ?pos_x ?dif_x))
                 (bind ?sig_pos_y (+ ?pos_y ?dif_y))
-                ; comprobamos que est� dentro del tablero
+                
+                ; La siguiente posicion es legal? (cumple los limites).
                 (if (existe_pos ?sig_pos_x ?sig_pos_y) then
-                    ; creamos las posibles piezas que podr�an estar en esa posici�n
+                    ; Creamos las posibles fichas que pueden estar en la siguiente posicion,
+                    ; puede haber una dama o un peon.
                     (bind ?sig_posibles_piezas (create$
                         (sym-cat ?*FICHA_PEON* ?sig_pos_x ?sig_pos_y)
-                        (sym-cat ?*FICHA_DAMA* ?sig_pos_x ?sig_pos_y)))
+                        (sym-cat ?*FICHA_DAMA* ?sig_pos_x ?sig_pos_y))
+                    )
+
                     (bind ?sig_ocupada FALSE)
-                    ; miramos si est� ocupada por alguna pieza
+                    ; Hay alguna ficha en la posicion siguiente? (sea atacante/defendiente).
                     (foreach ?sig_posible_pieza ?sig_posibles_piezas
                         (if (or (item_in_vector ?sig_posible_pieza ?defendientes)
                                 (item_in_vector ?sig_posible_pieza ?atacantes)) then
@@ -221,35 +330,33 @@
                             (break)
                         )
                     )
+
+                    ; Si la siguiente posicion no esta ocupada...
                     (if (not ?sig_ocupada) then
-                        ; la casilla est� vac�a
-                        ; se captura la pieza intermedia
+                        ; Comemos ficha intermedia
                         (if (not ?*MOV_FORZADO*) then
-                            ; si los movimientos anteriores no est�n forzados
-                            ; se vac�a la lista de movimientos
+                            ; Si los movimientos anteriores no estan forzados... vaciamos
+                            ; movimientos (?mov).
                             (bind ?mov (create$))
                             (bind ?*MOV_FORZADO* TRUE)
                         )
-                        (bind ?mov (append_to_vector (str-cat
-                        ?pos_x ?pos_y " " ?sig_pos_x ?sig_pos_y) ?mov))
-                        ; else
-                            ; la casilla est� ocupada
-                            ; no se puede mover; no se hace nada
-                    )
+                        (bind ?mov (append_to_vector (str-cat ?pos_x ?pos_y " " ?sig_pos_x ?sig_pos_y) ?mov))
+                    ) ; Si esta ocupada... no hacemos nada.
                 )
-            ; si no est� en las enemigas
+            ; No esta ocupada por defendientes... puede estar ocupada por atacante.
             else
-                ; ni en las aliadas
                 (bind ?ocupada FALSE)
+                ; Mirar si hay alguna atacante
                 (foreach ?posible_pieza ?posibles_piezas
                     (if (item_in_vector ?posible_pieza ?atacantes) then
                         (bind ?ocupada TRUE)
                         (break)
                     )
                 )
+
+                ; No hay ni defendiente ni atacante, no esta ocupada.
                 (if (not ?ocupada) then
-                    ; movimiento normal
-                    ; se a�ade si no hay alg�n movimiento forzado
+                    ; Si no hay movimiento forzado... anadimos el movimiento (normal).
                     (if (not ?*MOV_FORZADO*) then
                         (bind ?mov (append_to_vector (str-cat ?pos_x ?pos_y) ?mov))
                     )
@@ -268,7 +375,7 @@
 ; => Ejemplo: ("11 22", "31 22", "31 42")
 (deffunction movimientos (?blancas ?negras ?juegan_blancas ?pieza_a_mover)
     (bind ?*MOV_FORZADO* FALSE) ; Para saber si comemos ("forzamos").
-   
+
     ; Dependiendo de quien juegue, la direccion cambia:
     ; => Blancas, hacia arriba (1).
     ; => Negras, hacia abajo (-1).
@@ -283,30 +390,42 @@
         (bind ?direccion -1) ; abajo
     )
 
-    
     (bind ?movimientos (create$))
+
+    ; Por cada ficha atacante...
     (foreach ?pieza ?atacantes
         (if (or (not ?pieza_a_mover) (eq (sub-string 2 3 ?pieza) ?pieza_a_mover)) then
             (bind ?prev_forzado ?*MOV_FORZADO*)
             (bind ?tipo (sub-string 1 1 ?pieza))
             (bind ?x (string-to-field (sub-string 2 2 ?pieza)))
             (bind ?y (string-to-field (sub-string 3 3 ?pieza)))
+            
+            ; Si es peon, llamamos a mov_peon para saber los movimientos posibles.
             (if (eq ?tipo ?*FICHA_PEON*) then
-                (bind ?mov (mov_pieza_normal ?x ?y ?direccion ?atacantes ?defendientes))
+                (bind ?mov (mov_peon ?x ?y ?direccion ?atacantes ?defendientes))
             )
+
+            ; TODO: Aqui podemos mover la dama tambien. (if (eq ?tipo ?*FICHA_DAMA*))...
+            
+            ; Si estamos comiendo ?*MOV_FORZADO* = TRUE, y antes no ?prev_forzado = FALSE,
+            ; actualizamos ?movimientos para que este movimiento sea el unico disponible.
+            ; Actualizamos tambien ?prev_forzado al valor de ?*MOV_FORZADO* (TRUE).
             (if (and ?*MOV_FORZADO* (not ?prev_forzado)) then
                 (bind ?movimientos (create$))
                 (bind ?prev_forzado ?*MOV_FORZADO*)
             )
+
             (if (eq ?prev_forzado ?*MOV_FORZADO*) then
                 (foreach ?m ?mov
+                    ; ?mov_completo es la concatenacion del origen y el destino (separados por un blanco).
                     (bind ?mov_completo (str-cat ?x ?y " " ?m))
+                    ; Anadimos al final de ?movimiento el ?mov_completo
                     (bind ?movimientos (append_to_vector ?mov_completo ?movimientos))
                 )
             )
         )
     )
-
+    ; Devolvemos el multicampo con los movimientos completos (strings).
     (return ?movimientos)
 )
 
