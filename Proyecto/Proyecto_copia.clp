@@ -260,26 +260,30 @@
     (return ?mov)
 )
 
-; devuelve un multicampo en el que cada valor es una string representando
-; el movimiento de una pieza
-; en cada string, el primer valor son las coordenadas de la pieza
-; el �ltimo valor son las cordenadas a las que se mueve
-; y el valor intermedio (si lo hubiera) son las coordenadas de la
-; pieza que captura
-; solo se tiene en cuenta un salto en cada movimiento aunque pudiese
-; haber m�s
-; > ("13 24" "33 24" "33 44" "53 44" "53 64" "73 64" "73 84")
+; Funcion que calcula los movimientos de las piezas,
+; devuelve un multicampo con campos de la siguiente forma:
+; => Strings con dos o tres valores, el primero es la posicion de la pieza origen,
+; el ultimo es la posicion destino del movimiento. El central (opcional) es la posicion
+; de la pieza que ha comido.
+; => Ejemplo: ("11 22", "31 22", "31 42")
 (deffunction movimientos (?blancas ?negras ?juegan_blancas ?pieza_a_mover)
-    (bind ?*MOV_FORZADO* FALSE)
+    (bind ?*MOV_FORZADO* FALSE) ; Para saber si comemos ("forzamos").
+   
+    ; Dependiendo de quien juegue, la direccion cambia:
+    ; => Blancas, hacia arriba (1).
+    ; => Negras, hacia abajo (-1).
+    ; Tambien cambia el modo: atancante o defendiente.
     (if ?juegan_blancas then
         (bind ?atacantes ?blancas)
         (bind ?defendientes ?negras)
-        (bind ?direccion 1)
+        (bind ?direccion 1) ; arriba
     else
         (bind ?atacantes ?negras)
         (bind ?defendientes ?blancas)
-        (bind ?direccion -1)
+        (bind ?direccion -1) ; abajo
     )
+
+    
     (bind ?movimientos (create$))
     (foreach ?pieza ?atacantes
         (if (or (not ?pieza_a_mover) (eq (sub-string 2 3 ?pieza) ?pieza_a_mover)) then
@@ -308,12 +312,15 @@
 
 ; Pregunta al jugador el movimiento que quiere realizar
 ; devuelve una string que contiene las cordenadas de la pieza y las de
-; la casilla destino
-(deffunction pedir_mov (?blancas ?negras ?juegan_blancas ?pieza_a_mover)
-    (bind ?pos_mov (movimientos ?blancas ?negras ?juegan_blancas ?pieza_a_mover))
+; la casilla destino.
+(deffunction pedir_mov (?blancas ?negras ?juegan_blancas ?ficha_a_mover)
+    ; Obtenemos los movimientos posibles de la ?ficha_a_mover,
+    ; de la forma ("11 22") => primero origen, segundo destino.
+    (bind ?pos_mov (movimientos ?blancas ?negras ?juegan_blancas ?ficha_a_mover))
     (while TRUE
         (print_tablero ?blancas ?negras)
 
+        ; Mostramos los movimientos posibles (origen)
         (bind ?escritos (create$))
         (foreach ?mov ?pos_mov
             (bind ?pos_origen (sub-string 1 2 ?mov))
@@ -323,8 +330,9 @@
             )
         )
 
+        ; Se pide la ficha a mover (origen)
         (printout t crlf)
-        (printout t "Que pieza quieres mover? xy: ")
+        (printout t "Que ficha quieres mover? xy: ")
         (bind ?pieza (str-cat (read)))
 
         ; DEBUG => TODO: UNAI!!! borrar al acabar
@@ -333,32 +341,46 @@
             (return)
         )
 
+        ; TODO: borrar???
         (if (eq (length ?pieza) 3) then
             (bind ?pieza (str-cat (sub-string 1 1 ?pieza) (sub-string 3 3 ?pieza)))
         )
+
+        ; Comprobamos si la pieza introducida es una de las posibles.
         (bind ?pieza_correcta FALSE)
         (foreach ?mov ?pos_mov
-            (if (eq (sub-string 1 2 ?mov) ?pieza) then
+            (if (eq (sub-string 1 2 ?mov) ?pieza) then ; misma posicion => entrada OK.
                 (bind ?pieza_correcta TRUE)
                 (break)
             )
         )
+
+        ; Pieza (posicion) introducida es correcta.
         (if ?pieza_correcta then
+            ; Mostramos posibles movimientos desde esa posicion.
             (foreach ?mov ?pos_mov
                 (if (eq (sub-string 1 2 ?mov) ?pieza) then
                     (printout t "| " (sub-string (- (length ?mov) 1) (length ?mov) ?mov) " ")
                 )
             )
+
+            ; Pedimos a que posicion la quiere mover.
             (printout t crlf)
-            (printout t "�A que posici�n quieres moverla? xy: ")
+            (printout t "A que posicion quieres moverla? xy: ")
             (bind ?posicion (str-cat (read)))
+            
+            ; TODO: borrar???
             (if (eq (length ?posicion) 3) then
                 (bind ?posicion (str-cat (sub-string 1 1 ?posicion) (sub-string 3 3 ?posicion)))
             )
+            
+            ; Comprobamos si el movimiento introducido es valido,
+            ; casilla origen y destino existen en los posibles.
+            ; Devolvemos la concatenacion del movimiento.
             (foreach ?mov ?pos_mov
                 (bind ?long (length ?mov))
-                (if (and (eq (sub-string 1 2 ?mov) ?pieza)
-                    (eq (sub-string (- ?long 1) ?long ?mov) ?posicion)) then
+                (if (and (eq (sub-string 1 2 ?mov) ?pieza) ; misma posicion origen
+                    (eq (sub-string (- ?long 1) ?long ?mov) ?posicion)) then ; misma posicion destino
                     (return (str-cat ?mov))
                 )
             )
@@ -366,11 +388,18 @@
     )
 )
 
+; Funcion auxiliar para el turno del jugador, llama a pedir_mov
+; y guarda en ?mov el movimiento introducido.
+; Aplica el movimiento introducido llamando a aplicar_movimiento.
 (deffunction turno_jugador (?blancas ?negras ?color ?pieza_a_mover)
     (bind ?mov (pedir_mov ?blancas ?negras ?color ?pieza_a_mover))
     (aplicar_movimiento ?blancas ?negras ?mov ?color)
 )
 
+; Funcion auxiliar para llamar a (turno_jugador) cuando
+; el turno sea del jugador (comparando ?*TURNO* con ?*COLOR_JUG*).
+; => Si el turno es del jugador, llamar a turno_jugador con parametros.
+; => Si el turno es del ordenador, print_tablero.
 (deffunction turno (?blancas ?negras ?pieza_a_mover)
     (if (eq ?*TURNO* ?*COLOR_JUG*) then
         (printout t "==> TURNO DEL JUGADOR <==" crlf)
@@ -383,6 +412,13 @@
     )
 )
 
+
+; ==========> Parte inicial del juego <==========
+
+; Regla que inicia el tablero cuando se detecta (init_global),
+; este hecho se introduce en la regla pedir_param, despues de 
+; llamar a su funcion. Se elimina el hecho (init_global) y se
+; llama a la funcion crear_tablero.
 (defrule iniciar_tablero
     ?f <- (init_global)
     =>
@@ -390,12 +426,15 @@
     (crear_tablero)
 )
 
+; Regla para detectar final de juego, se activa con el hecho
+; (fin_juego) y para la ejecucion (halt).
 (defrule fin_juego
     (fin_juego)
     =>
     (halt)
 )
 
+; Regla que se activa cuando se detecta el hecho (salir).
 (defrule salir
     (salir)
     =>
@@ -403,6 +442,8 @@
     (halt)
 )
 
+; Funcion auxiliar para pedir al juegador los parametros.
+; => Setea las dimensiones el tablero ?*DIM* y el color del jugador ?*COLOR_JUG*.
 (deffunction pedir_param()
     (bind ?tam -1)
     (while (or (< ?tam 4) (> ?tam 9) (not (= 0 (mod ?tam 2)))) do
@@ -425,6 +466,8 @@
     )
 )
 
+; Cuando (inicio) exista, comenzamos el juego pidiendo parametros
+; al jugador, despues activamos (init_global).
 (defrule pedir_param
     (inicio)
     =>
@@ -433,6 +476,7 @@
     (return)
 )
 
+; Se activa (inicio) para comenzar el juego
 (deffacts inicializacion
     (inicio)
 )
