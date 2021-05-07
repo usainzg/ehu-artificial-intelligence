@@ -1,3 +1,5 @@
+; ==================> VARIABLES GLOBALES <==================
+
 (defglobal
     ?*DIM* = 4 ; Dimension del tablero, ej: 4 => 4x4
     ?*COLOR_JUG* = TRUE ; TRUE = blancas; FALSE = negras
@@ -13,6 +15,8 @@
     ?*CORONADO* = FALSE ; Para indicar si un peon ha sido coronado (alcanza ultima fila del tablero).
 )
 
+; ==================> TEMPLATES <==================
+
 ; Template para tablero, los multicampos en negras/blancas se definen:
 ; => ("N11 N13") 
 ; Dos peones (N) en (1, 1) y (1, 3).
@@ -27,6 +31,8 @@
   (multislot negras)
   (slot pieza_a_mover)
 )
+
+; ==================> FUNCIONES AUXILIARES <==================
 
 ; Funcion auxiliar para cambiar de turno
 (deffunction cambiar_turno ()
@@ -121,6 +127,8 @@
     )
 )
 
+; ==================> PARTE DEL JUEGO PARA JUGADOR <==================
+
 ; Funcion que calcula el tablero despues de haber realizado el movimiento ?mov.
 ; => Devuelve las fichas blancas y negras separadas por "|".
 ; Ejemplo: "N11 N22 | N24 N44".
@@ -193,7 +201,8 @@
     (bind ?lista (explode$ ?mov))
     ; Si hemos capturado... 
     (if (> (length$ ?lista) 2) then
-        (bind ?nuevas_enemigas ?enemigas) ; TODO: hace falta?
+        ; TODO: hace falta?
+        ; (bind ?nuevas_enemigas ?enemigas) 
         (bind ?capturadas (subseq$ ?lista 2 (- (length$ ?lista) 1))) ; Extraer capturadas.
         (foreach ?capturada ?capturadas
             (bind ?pos_capturada (str-cat ?capturada))
@@ -528,6 +537,7 @@
     )
 )
 
+; Regla para el turno del jugador.
 (defrule turno
     ?t <- (tablero (blancas $?b) (negras $?n))
     =>
@@ -553,31 +563,7 @@
     )
 )
 
-; TODO: cambiar salience y orden de las reglas???
-(defrule ganaronblancas
-    (declare(salience 101))
-    ?w <- (tablero (blancas $?b) (negras $?n))
-    (ganaronblancas)
-    =>
-    (assert(findejuego))
-    (print_tablero $?b $?n)
-    (printout t "Han ganado las blancas!!!" crlf)
-    (retract ?w)
-)
-
-(defrule ganaronnegras
-    (declare(salience 102))
-    ?m <- (tablero (blancas $?b) (negras $?n))
-    (ganaronnegras)
-    =>
-    (assert(findejuego))
-    (print_tablero $?b $?n)
-    (printout t "Han ganado las negras!!!" crlf)
-    (retract ?m)
-)
-
-
-; ==========> Parte inicial del juego <==========
+; ==========> PARTE INICIAL DEL JUEGO Y REGLAS GLOBALES <==========
 
 ; Funcion auxiiar para crear el tablero inicial.
 ; => ?lineas se refiere al numero de lineas con fichas inicial. Es decir, 
@@ -617,6 +603,29 @@
     =>
     (retract ?f)
     (crear_tablero)
+)
+
+; TODO: cambiar salience y orden de las reglas???
+(defrule ganan_blancas
+    (declare(salience 101))
+    ?w <- (tablero (blancas $?b) (negras $?n))
+    (ganan_blancas)
+    =>
+    (assert(fin_juego))
+    (print_tablero $?b $?n)
+    (printout t "Han ganado las blancas!!!" crlf)
+    (retract ?w)
+)
+
+(defrule ganan_negras
+    (declare(salience 102))
+    ?m <- (tablero (blancas $?b) (negras $?n))
+    (ganan_negras)
+    =>
+    (assert(fin_juego))
+    (print_tablero $?b $?n)
+    (printout t "Han ganado las negras!!!" crlf)
+    (retract ?m)
 )
 
 ; Regla para detectar final de juego, se activa con el hecho
@@ -662,10 +671,11 @@
 ; Cuando (inicio) exista, comenzamos el juego pidiendo parametros
 ; al jugador, despues activamos (init_global).
 (defrule pedir_param
-    (inicio)
+    ?i <- (inicio)
     =>
     (pedir_param)
     (assert (init_global))
+    (retract ?i)
     (return)
 )
 
