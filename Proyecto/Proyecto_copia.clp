@@ -21,6 +21,13 @@
     (multislot blancas)
 )
 
+; Tablero temporal para movimientos.
+(deftemplate tablero_tmp
+  (multislot blancas)
+  (multislot negras)
+  (slot pieza_a_mover)
+)
+
 ; Funcion auxiliar para cambiar de turno
 (deffunction cambiar_turno ()
     (bind ?*TURNO* (not ?*TURNO*)) ; Negar la variable logica, TRUE => FALSE / FALSE => TRUE
@@ -159,7 +166,7 @@
                 
                 ; Si la ficha llega al final y es un peon... "coronar" => hacer dama.
                 (if (eq ?tipo ?*FICHA_PEON*) then
-                    (bind ?tipo ?*DAMA*)
+                    (bind ?tipo ?*FICHA_DAMA*)
                     (bind ?*CORONADO* TRUE)
                 )
             )
@@ -519,6 +526,54 @@
         (print_tablero ?blancas ?negras)
         (return FALSE)
     )
+)
+
+(defrule turno
+    ?t <- (tablero (blancas $?b) (negras $?n))
+    =>
+    (bind ?pos_mov (movimientos $?b $?n ?*TURNO* FALSE))
+    ; No es posible ningun movimiento... fin del juego.
+    (if (eq (length ?pos_mov) 0) then
+        ; Comprobamos quien ha ganado...
+        (if (eq ?*TURNO* FALSE) then
+            (assert(ganaronblancas))
+        else
+            (assert(ganaronnegras))
+    )
+    (printout t "Fin del juego!" crlf )
+    else
+        (bind ?r (turno $?b $?n FALSE))
+        ; Turno jugador completado...
+        (if ?r then
+            (retract ?t)
+        else
+            (printout t "TURNO DE LA IA...!!!" crlf)
+            (return)
+        )
+    )
+)
+
+; TODO: cambiar salience y orden de las reglas???
+(defrule ganaronblancas
+    (declare(salience 101))
+    ?w <- (tablero (blancas $?b) (negras $?n))
+    (ganaronblancas)
+    =>
+    (assert(findejuego))
+    (print_tablero $?b $?n)
+    (printout t "Han ganado las blancas!!!" crlf)
+    (retract ?w)
+)
+
+(defrule ganaronnegras
+    (declare(salience 102))
+    ?m <- (tablero (blancas $?b) (negras $?n))
+    (ganaronnegras)
+    =>
+    (assert(findejuego))
+    (print_tablero $?b $?n)
+    (printout t "Han ganado las negras!!!" crlf)
+    (retract ?m)
 )
 
 
