@@ -114,46 +114,20 @@
     )
 )
 
-; Funcion auxiiar para crear el tablero inicial.
-; => ?lineas se refiere al numero de lineas con fichas inicial. Es decir, 
-; para un tablero de DIM=4... (4/2)-1 = 1 linea con fichas para cada color.
-(deffunction crear_tablero ()
-    (bind ?negras "")
-    (bind ?blancas "")
-    (bind ?lineas (- (/ ?*DIM* 2) 1))
-    (loop-for-count (?i 1 ?lineas)
-        (if (eq 0 (mod ?i 2)) then
-            (bind ?blancas (str-cat ?blancas (crear_linea 2 ?i) " "))
-            (bind ?negras (str-cat ?negras (crear_linea 1 (- ?*DIM* ?i -1)) " "))
-        else
-            (bind ?blancas (str-cat ?blancas (crear_linea 1 ?i) " "))
-            (bind ?negras (str-cat ?negras (crear_linea 2 (- ?*DIM* ?i -1)) " "))
-        )
-    )
-    
-    ; Cambiar las fichas de strings multicampos
-    (bind ?negras (explode$ ?negras))
-    (bind ?blancas (explode$ ?blancas))
-
-    (printout t "====> POSICIONES INICIALES <==== " crlf)
-    (printout t "=> Negras: " ?negras crlf)
-    (printout t "=> Blancas: " ?blancas crlf)
-
-    (assert(tablero (blancas ?blancas) (negras ?negras))) ; Introducimos tablero inicial
-    (print_tablero ?blancas ?negras) ; Mostramos tablero inicial
-)
-
 ; Funcion que calcula el tablero despues de haber realizado el movimiento ?mov.
 ; => Devuelve las fichas blancas y negras separadas por "|".
 ; Ejemplo: "N11 N22 | N24 N44".
-(deffunction calcular_movimiento(?blancas ?negras ?mov ?color )
+(deffunction calcular_movimiento (?blancas ?negras ?mov ?color)
     (bind ?*CORONADO* FALSE)
     (bind ?long (length ?mov))
+
+    ; Extraemos pos_origen y pos_destino.
     (bind ?pos_origen (sub-string 1 2 ?mov))
     (bind ?pos_destino (sub-string (- ?long 1) ?long ?mov))
-    (bind ?encontrada FALSE)
 
-    ; generalización de las listas de piezas en ?aliadas y ?enemigas
+    ; Creamos copias de las fichas:
+    ; => Dependiendo del color, las aliadas y enemigas seran diferentes.
+    ; TODO: cambiar ?nuevas_enemigas ?enemigas.
     (if ?color then
         (bind ?aliadas ?blancas)
         (bind ?nuevas_aliadas ?blancas)
@@ -166,73 +140,89 @@
         (bind ?nuevas_enemigas ?blancas)
     )
 
-    (bind ?index 0)
-    ; iterar las aliadas buscando la pieza que se quiere mover
+    (bind ?encontrada FALSE)
+    
+    ; Para guardar el indice de la ficha.
+    (bind ?indice_ficha 0)
+    
+    ; Buscamos en las aliadas la pieza a mover.
     (loop-for-count (?i 1 (length$ ?aliadas))
         (bind ?pieza (nth$ ?i ?aliadas))
         (bind ?tipo (sub-string 1 1 ?pieza))
         (bind ?pos (sub-string 2 3 ?pieza))
-        ; si las posiciones son iguales
+        
+        ; Posicion origen encontrada.
         (if (eq ?pos ?pos_origen) then
-            ; creamos la nueva pieza después de haber sido movida
+            ; Si llegamos al final del tablero despues de mover la ficha...
             (if (or (and ?color (= ?*DIM* (string-to-field (sub-string 2 2 ?pos_destino))))
                     (and (not ?color) (= 1 (string-to-field (sub-string 2 2 ?pos_destino))))) then
                 
-                (if (eq ?tipo ?*PIEZA_NORMAL*) then
-                ; si la pieza llega al final del tablero y es un peón, se corona
+                ; Si la ficha llega al final y es un peon... "coronar" => hacer dama.
+                (if (eq ?tipo ?*FICHA_PEON*) then
                     (bind ?tipo ?*DAMA*)
                     (bind ?*CORONADO* TRUE)
                 )
             )
+            ; Crear la nueva ficha despues de moverla.
             (bind ?pieza_movida (sym-cat ?tipo ?pos_destino))
             (bind ?encontrada TRUE)
-            ; guardamos el índice de la pieza
-            (bind ?index ?i)
+            
+            ; Guardamos el indice de la ficha.
+            (bind ?indice_ficha ?i)
             (break)
         )
     )
+
+    ; Si encontramos la ficha...
     (if ?encontrada then
-        ; si se ha encontrado, se reemplaza la pieza original por la movida
-        (bind ?nuevas_aliadas (replace$ ?aliadas ?index ?index ?pieza_movida))
+        ; Reemplazamos la pieza original por la movida ("la nueva").
+        (bind ?nuevas_aliadas (replace$ ?aliadas ?indice_ficha ?indice_ficha ?pieza_movida))
     else
-        ; si no se ha encontrado, se asume error y se sale del juego
-        (printout t ?mov " -> mov. no encontrado" crlf)
+        ; Si no... error! => salir.
+        (printout t "=> Error: " ?mov " no encontrado!" crlf)
         (halt)
     )
+
     (bind ?lista (explode$ ?mov))
+    ; Si hemos capturado... 
     (if (> (length$ ?lista) 2) then
-        (bind ?nuevas_enemigas ?enemigas)
-        (bind ?capturadas (subseq$ ?lista 2 (- (length$ ?lista) 1)))
+        (bind ?nuevas_enemigas ?enemigas) ; TODO: hace falta?
+        (bind ?capturadas (subseq$ ?lista 2 (- (length$ ?lista) 1))) ; Extraer capturadas.
         (foreach ?capturada ?capturadas
             (bind ?pos_capturada (str-cat ?capturada))
             (bind ?encontrada FALSE)
-            (bind ?index 0)
-            ; iterar las enemigas buscando la pieza que se ha capturado
+            (bind ?indice_ficha 0)
+            
+            ; Buscamos la enemiga capturada...
             (loop-for-count (?i 1 (length$ ?nuevas_enemigas))
                 (bind ?pieza (nth$ ?i ?nuevas_enemigas))
                 (bind ?pos (sub-string 2 3 ?pieza))
-                ; si las posiciones son iguales
+               
+                ; Pieza capturada encontrada.
                 (if (eq ?pos_capturada ?pos) then
                     (bind ?encontrada TRUE)
-                    ; guardamos el índice de la pieza
-                    (bind ?index ?i)
+                    (bind ?indice_ficha ?i)
                     (break)
                 )
             )
+            
+            ; Si hemos encontrado la pieza capturada... eliminarla de las nuevas enemigas.
             (if ?encontrada then
-                ; si se ha encontrado, se elimina la pieza capturada de la lista
-                (bind ?nuevas_enemigas (delete$ ?nuevas_enemigas ?index ?index))
+                (bind ?nuevas_enemigas (delete$ ?nuevas_enemigas ?indice_ficha ?indice_ficha))
             )
         )
     )
-    ; se recuperan los colores de las piezas
+    
+    ; Volvemos a setear los colores.
     (if ?color then
         (bind ?nuevas_blancas ?nuevas_aliadas)
         (bind ?nuevas_negras ?nuevas_enemigas)
     else
-        (bind ?nuevas_blancas ?nuevas_enemigas)
         (bind ?nuevas_negras ?nuevas_aliadas)
+        (bind ?nuevas_blancas ?nuevas_enemigas)
     )
+
+    ; Devuelve las ?nuevas_blancas | ?nuevas_negras.
     (return (str-cat (implode$ ?nuevas_blancas) "|" (implode$ ?nuevas_negras)))
 )
 
@@ -533,6 +523,35 @@
 
 
 ; ==========> Parte inicial del juego <==========
+
+; Funcion auxiiar para crear el tablero inicial.
+; => ?lineas se refiere al numero de lineas con fichas inicial. Es decir, 
+; para un tablero de DIM=4... (4/2)-1 = 1 linea con fichas para cada color.
+(deffunction crear_tablero ()
+    (bind ?negras "")
+    (bind ?blancas "")
+    (bind ?lineas (- (/ ?*DIM* 2) 1))
+    (loop-for-count (?i 1 ?lineas)
+        (if (eq 0 (mod ?i 2)) then
+            (bind ?blancas (str-cat ?blancas (crear_linea 2 ?i) " "))
+            (bind ?negras (str-cat ?negras (crear_linea 1 (- ?*DIM* ?i -1)) " "))
+        else
+            (bind ?blancas (str-cat ?blancas (crear_linea 1 ?i) " "))
+            (bind ?negras (str-cat ?negras (crear_linea 2 (- ?*DIM* ?i -1)) " "))
+        )
+    )
+    
+    ; Cambiar las fichas de strings multicampos
+    (bind ?negras (explode$ ?negras))
+    (bind ?blancas (explode$ ?blancas))
+
+    (printout t "====> POSICIONES INICIALES <==== " crlf)
+    (printout t "=> Negras: " ?negras crlf)
+    (printout t "=> Blancas: " ?blancas crlf)
+
+    (assert(tablero (blancas ?blancas) (negras ?negras))) ; Introducimos tablero inicial
+    (print_tablero ?blancas ?negras) ; Mostramos tablero inicial
+)
 
 ; Regla que inicia el tablero cuando se detecta (init_global),
 ; este hecho se introduce en la regla pedir_param, despues de 
