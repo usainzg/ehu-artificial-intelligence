@@ -22,7 +22,7 @@
     ?*M_INF* = -99999
 )
 
-; ==================> TEMPLATES <==================
+; ==================> TEMPLATES GENERALES <==================
 
 ; Template para tablero, los multicampos en negras/blancas se definen:
 ; => ("N11 N13") 
@@ -37,32 +37,6 @@
   (multislot blancas)
   (multislot negras)
   (slot pieza_a_mover)
-)
-
-; Representa un estado en el arbol, es final si... (su nivel == ?*MAX_PROF* y valor != FALSE).
-(deftemplate estado
-    (slot id) ; id del estado.
-    (slot id_padre) ; id del estado padre.
-    (slot nivel) ; nivel => profundidad del nodo. (Raiz en 0).
-    (multislot blancas)
-    (multislot negras)
-    (slot movimiento) ; movimiento realizado para llegar al nodo (mov para padre => actual).
-    (slot valor (default FALSE)) ; valor heuristico.
-    (slot alfa (default ?*M_INF*)) ; valor alfa, para alfa-beta.
-    (slot beta (default ?*INF*)) ; valor beta, para alfa-beta.
-)
-
-; Representa un estado temporal intermedio, para cuando un turno requiere mas de un
-; movimiento.
-(deftemplate estado_tmp
-    (slot id)
-    (slot id_padre)
-    (slot nivel) ; nivel de los estados creados a partir de estado_tmp (el siguiente).
-    (multislot blancas)
-    (multislot negras)
-    (slot movimiento)
-    (slot pieza_a_mover)
-    (slot valor (default FALSE))
 )
 
 ; ==================> FUNCIONES AUXILIARES <==================
@@ -629,7 +603,132 @@
 
 ; ==================> PARTE DE LA IA <==================
 
+; Representa un estado en el arbol, es final si... (su nivel == ?*MAX_PROF* y valor != FALSE).
+(deftemplate estado
+    (slot id) ; id del estado.
+    (slot id_padre) ; id del estado padre.
+    (slot nivel) ; nivel => profundidad del nodo. (Raiz en 0).
+    (multislot blancas)
+    (multislot negras)
+    (slot movimiento) ; movimiento realizado para llegar al nodo (mov para padre => actual).
+    (slot valor (default FALSE)) ; valor heuristico.
+    (slot alfa (default ?*M_INF*)) ; valor alfa, para alfa-beta.
+    (slot beta (default ?*INF*)) ; valor beta, para alfa-beta.
+)
 
+; Representa un estado temporal intermedio, para cuando un turno requiere mas de un
+; movimiento.
+(deftemplate estado_tmp
+    (slot id)
+    (slot id_padre)
+    (slot nivel) ; nivel de los estados creados a partir de estado_tmp (el siguiente).
+    (multislot blancas)
+    (multislot negras)
+    (slot movimiento)
+    (slot pieza_a_mover)
+    (slot valor (default FALSE))
+)
+
+; Representa un posible movimiento del ordenador, se guarda con el valor del heuristico.
+(deftemplate posible_solucion
+    (slot valor)
+    (slot movimiento)
+)
+
+; Representa el control de la busqueda, tiene el nodo actual y los visitados.
+(deftemplate control_busqueda
+    (slot nodo_actual (default 0))
+    (multislot visitados)
+)
+
+; Funcion auxiliar para incrementar ?*CONTADOR_ID*.
+(deffunction incrementar_contador ()
+    (bind ?*CONTADOR_ID* (+ ?*CONTADOR_ID* 1))
+    (return ?*CONTADOR_ID*)
+)
+
+; Funcion auxiliar para resetear ?*CONTADOR_ID*.
+; => El valor 0, reservado para nodo raiz.
+(deffunction reset_contador ()
+    (bind ?*CONTADOR_ID* 1)
+    (return ?*CONTADOR_ID*)
+)
+
+; Funcion auxiliar para resetear el control de la busqueda:
+; => nodo_actual = 0.
+; => visitados = vacio.
+(deffunction reset_control_busqueda ()
+    (assert (control))
+)
+
+; Regla para eliminar las posibles soluciones cuando se acaba la busqueda.
+(defrule eliminar_posibles
+    (eliminar_posibles)
+    ?f <- (posible_solucion)
+    =>
+    (retract ?f)
+)
+
+; Regla para determinar que la ia ha acabado.
+(defrule terminado_ia
+    ?f <- (eliminar_posibles)
+    =>
+    (retract ?f)
+    (assert (ia_movido))
+    (return)
+)
+
+; Regla para crear nodos del árbol.
+(defrule crear_arbol
+    (not (recorrer_arbol))
+    (not (eliminar_posibles))
+    (not (abortar_crear_arbol))
+
+    ; Si hay estado no final...
+    ; => No esta en ?*PROF_MAX*, se compara nivel.
+    ; => No tiene valor heuristico.
+    ?e <- (estado (id ?id) (nivel ?n) (blancas $?blancas) (negras $?negras) (valor ?valor))
+    (test (and (< ?n ?*MAX_PROF*) (not ?valor)))
+    =>
+    (bind ?nuevo_nivel (+ ?n 1))
+    
+    ; Dependiendo del nivel... el siguiente nivel es IA o jugador.
+    (if (= 0 (mod ?nuevo_nivel 2)) then
+        (bind ?color ?*COLOR_J*)
+    else
+        (bind ?color (not ?*COLOR_J*))
+    )
+
+    ; Calculamos los movimientos.
+    (bind ?movimientos (movimientos $?blancas $?negras ?color FALSE))
+    
+    ; Por cada movimiento... creamos nodo del arbol.
+    (foreach ?mov ?movimientos
+        (aplicar_movimiento_ia $?blancas $?negras ?mov ?color ?id ?nuevo_nivel FALSE)
+    )
+)
+
+; Regla cuando se ha terminado la búsqueda.
+(defrule fin_busqueda
+    ; Estamos recorriendo el arbol.
+    ?f <- (recorrer_arbol)
+
+    ; Nodo actual == nodo raiz.
+    ?control <- (control (nodo_actual 0) (visitados $?visitados))
+    ?origen <- (estado (id 0) (valor ?valor_final))
+    ?solucion <- (pos_solucion (valor ?valor) (movimiento ?mov))
+    
+    ; Una posible solucion con mismo valor que el nodo raiz.
+    (test (eq ?valor ?valor_final))
+    =>
+    ; Guardamos el movimiento actual.
+    (bind ?*MOV_IA* ?mov)
+
+    ; Terminamos busqueda y eliminamos posibles soluciones.
+    (retract ?f)
+    (retract ?control)
+    (assert (eliminar_posibles))
+)
 
 ; ==================> PARTE INICIAL DEL JUEGO Y REGLAS GLOBALES <==================
 
