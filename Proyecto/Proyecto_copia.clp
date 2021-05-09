@@ -678,6 +678,20 @@
     (return)
 )
 
+; Regla para determinar que el árbol ha terminado de crearse.
+(defrule arbol_creado
+    (not (recorrer_arbol))
+    (not (eliminar_posibles))
+
+    ; Hay estado final.
+    (estado (nivel ?n) (valor ?valor))
+    (test (not (eq ?valor FALSE )))
+    =>
+    ; Creamos el control para busqueda y recorremos.
+    (reset_control_busqueda)
+    (assert (recorrer_arbol))
+)
+
 ; Regla para crear nodos del árbol.
 (defrule crear_arbol
     (not (recorrer_arbol))
