@@ -13,6 +13,7 @@
     ?*FICHA_DAMA* = "D" ; Tipo dama
     ?*MOV_FORZADO* = FALSE ; Para indicar cuando comemos ("forzamos movimiento").
     ?*CORONADO* = FALSE ; Para indicar si un peon ha sido coronado (alcanza ultima fila del tablero).
+    ?*MOV_IA* = FALSE ; Para guardar movimiento de la IA.
 )
 
 ; ==================> TEMPLATES <==================
@@ -537,6 +538,23 @@
     )
 )
 
+; Regla para saber que si hay movimientos obligatorios, dado que tablero_tmp solo se crea cuando
+; se va a comer ("forzar").
+(defrule turno_intermedio
+    ?t <- (tablero_tmp (blancas $?b) (negras $?n) (pieza_a_mover ?p))
+    =>
+    ; Calculamos todos los movimientos posibles.
+    (movimientos $?b $?n ?*TURNO* ?p)
+    ; Si hay movimientos forzados, tomamos otro turno.
+    (if (not ?*MOV_FORZADO*) then
+        (turno $?b $?n FALSE ?p)
+    else ; No hay movimientos forzados, creamos tablero normal y cambiamos turno.
+        (assert (tablero (blancas $?b) (negras $?n)))
+        (cambiar_turno)
+    )
+    (retract ?t) ; Retract del tablero temporal.
+)
+
 ; Regla para el turno del jugador.
 (defrule turno
     ?t <- (tablero (blancas $?b) (negras $?n))
@@ -561,6 +579,20 @@
             (return)
         )
     )
+)
+
+(defrule ia_movido
+    ?f <- (ia_movido)
+    ?t <- (tablero (blancas $?b) (negras $?n))
+    =>
+    (bind ?mov ?*MOV_IA*) ; Tenemos el movimiento en ?*MOV_IA*, lo dejamos en ?mov.
+    (bind ?*MOV_FORZADO* FALSE)
+    (bind ?*CORONADO* FALSE)
+    (printout t "=> Movimiento IA: " ?mov crlf)
+    (aplicar_movimiento $?b $?n ?mov (not ?*COLOR_J*)) ; Aplicamos movimiento.
+    (bind ?*MOV_IA* FALSE) ; Reset de la variable global.
+    (retract ?f) ; Eliminamos los hechos.
+    (retract ?t) ; Eliminamos los hechos.
 )
 
 ; ==========> PARTE INICIAL DEL JUEGO Y REGLAS GLOBALES <==========
