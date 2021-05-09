@@ -14,6 +14,12 @@
     ?*MOV_FORZADO* = FALSE ; Para indicar cuando comemos ("forzamos movimiento").
     ?*CORONADO* = FALSE ; Para indicar si un peon ha sido coronado (alcanza ultima fila del tablero).
     ?*MOV_IA* = FALSE ; Para guardar movimiento de la IA.
+
+    ; Globales para la IA.
+    ?*CONTADOR_ID* = 0
+    ?*MAX_PROF* = 6
+    ?*INF* = 99999
+    ?*M_INF* = -99999
 )
 
 ; ==================> TEMPLATES <==================
@@ -31,6 +37,32 @@
   (multislot blancas)
   (multislot negras)
   (slot pieza_a_mover)
+)
+
+; Representa un estado en el arbol, es final si... (su nivel == ?*MAX_PROF* y valor != FALSE).
+(deftemplate estado
+    (slot id) ; id del estado.
+    (slot id_padre) ; id del estado padre.
+    (slot nivel) ; nivel => profundidad del nodo. (Raiz en 0).
+    (multislot blancas)
+    (multislot negras)
+    (slot movimiento) ; movimiento realizado para llegar al nodo (mov para padre => actual).
+    (slot valor (default FALSE)) ; valor heuristico.
+    (slot alfa (default ?*M_INF*)) ; valor alfa, para alfa-beta.
+    (slot beta (default ?*INF*)) ; valor beta, para alfa-beta.
+)
+
+; Representa un estado temporal intermedio, para cuando un turno requiere mas de un
+; movimiento.
+(deftemplate estado_tmp
+    (slot id)
+    (slot id_padre)
+    (slot nivel) ; nivel de los estados creados a partir de estado_tmp (el siguiente).
+    (multislot blancas)
+    (multislot negras)
+    (slot movimiento)
+    (slot pieza_a_mover)
+    (slot valor (default FALSE))
 )
 
 ; ==================> FUNCIONES AUXILIARES <==================
@@ -595,7 +627,11 @@
     (retract ?t) ; Eliminamos los hechos.
 )
 
-; ==========> PARTE INICIAL DEL JUEGO Y REGLAS GLOBALES <==========
+; ==================> PARTE DE LA IA <==================
+
+
+
+; ==================> PARTE INICIAL DEL JUEGO Y REGLAS GLOBALES <==================
 
 ; Funcion auxiiar para crear el tablero inicial.
 ; => ?lineas se refiere al numero de lineas con fichas inicial. Es decir, 
