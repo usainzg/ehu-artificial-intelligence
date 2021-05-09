@@ -40,6 +40,7 @@
     (return ?*TURNO*)
 )
 
+; Funcion auxiliar para comprobar si posicion existe en el tablero
 (deffunction cambiar_col ()
     (bind ?*COLOR_JUG* (not ?*COLOR_JUG*)) ; Negar la variable logica, TRUE => FALSE / FALSE => TRUE
     (return ?*COLOR_JUG*)
@@ -529,6 +530,7 @@
     (cambiar_col)
 )
 
+; Turno cpu basado en el turno del jugador, aqui se mete el algor MINMAX con poda ALPHABETA
 (deffunction turno_cpu(?blancas ?negras ?color ?pieza_a_mover)
     (bind ?mov (pedir_mov ?blancas ?negras ?color ?pieza_a_mover))
     (aplicar_movimiento ?blancas ?negras ?mov ?color)
@@ -536,7 +538,7 @@
 )
 
 ; Funcion auxiliar para llamar a (turno_jugador) cuando
-; el turno sea del jugador (comparando ?*TURNO* con ?*COLOR_JUG*).
+; el turno sea TRUE, o lo que es lo mismo, el turno del jugador.
 ; => Si el turno es del jugador, llamar a turno_jugador con parametros.
 ; => Si el turno es del ordenador, print_tablero.
 (deffunction turno (?blancas ?negras ?pieza_a_mover)
@@ -670,6 +672,8 @@
     (bind ?*DIM* ?tam)
     (bind ?exit FALSE)
     (while TRUE
+	; siempre comienzan las blancas, pero dependiendo de lo que seleccione el jugador
+	; empezara antes la maquina o no
         (printout t "¿Juegas con blancas o negras? (b/n): ")
         (bind ?color (read))
         (if (= 0 (str-compare "b" (lowcase ?color))) then
