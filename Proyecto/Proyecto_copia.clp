@@ -34,9 +34,9 @@
 
 ; Tablero temporal para movimientos.
 (deftemplate tablero_tmp
-(multislot blancas)
-(multislot negras)
-(slot pieza_a_mover)
+    (multislot blancas)
+    (multislot negras)
+    (slot pieza_a_mover)
 )
 
 ; ==================> FUNCIONES AUXILIARES <==================
@@ -97,7 +97,8 @@
                 (bind ?linea (str-cat ?linea (str-cat ?col " ")))
             else ; dibujar fichas del tablero
                 (bind ?posibles_fichas ; posible ficha en ?col, ?fila => puede ser peon o dama 
-                    (create$ (sym-cat ?*FICHA_PEON* ?col ?fila)(sym-cat ?*FICHA_DAMA* ?col ?fila)))
+                    (create$ (sym-cat ?*FICHA_PEON* ?col ?fila))
+                )
                 (bind ?esta_ficha FALSE)
                 ; buscamos la ficha en las blancas
                 (foreach ?p_fi ?posibles_fichas
@@ -105,8 +106,6 @@
                         (bind ?tipo_ficha (sub-string 1 1 ?p_fi))
                         (if (eq ?tipo_ficha ?*FICHA_PEON*) then
                             (bind ?esta_ficha ?*SYM_B*)
-                        else
-                            (bind ?esta_ficha ?*SYM_B_DAMA*)
                         )
                         (break)
                     )
@@ -117,8 +116,6 @@
                             (bind ?tipo_ficha (sub-string 1 1 ?p_fi))
                             (if (eq ?tipo_ficha ?*FICHA_PEON*) then
                                 (bind ?esta_ficha ?*SYM_N*)
-                            else
-                                (bind ?esta_ficha ?*SYM_N_DAMA*)
                             )
                             (break)
                         )
@@ -132,6 +129,27 @@
         )
         (printout t ?linea crlf)
     )
+)
+
+; Funcion auxiliar que devuelve el tipo de la ?pieza.
+(deffunction tipo_pieza (?pieza)
+    (return (sub-string 1 1 ?pieza))
+)
+
+; Funcion auxiliar para calcular el numero de piezas de tipo == ?tipo.
+(deffunction cuantas_piezas_tipo (?piezas ?tipo)
+    (bind ?sum 0)
+    (foreach ?pieza ?piezas
+        (if (eq ?tipo (tipo_pieza ?pieza)) then
+            (bind ?sum (+ ?sum 1))
+        )
+    )
+    (return ?sum)
+)
+
+; Funcion auxiliar para saber cuantas damas hay.
+(deffunction cuantas_damas (?piezas)
+    (return (cuantas_piezas_tipo ?piezas ?*FICHA_DAMA*))
 )
 
 ; ==================> PARTE DEL JUEGO PARA JUGADOR <==================
@@ -812,7 +830,7 @@
         (if (>= ?num_piezas 10) then
             (bind ?*MAX_PROF* 4)
         else
-            (bind ?*MAX_PROF* 6)
+            (bind ?*MAX_PROF* 4)
         )
 
         (printout t "=> Profundidad: " ?*MAX_PROF* crlf)
