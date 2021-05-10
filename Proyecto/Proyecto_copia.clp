@@ -569,9 +569,9 @@
     (if (eq (length ?pos_mov) 0) then
         ; Comprobamos quien ha ganado...
         (if (eq ?*TURNO* FALSE) then
-            (assert(ganaronblancas))
+            (assert(ganan_blancas))
         else
-            (assert(ganaronnegras))
+            (assert(ganan_negras))
     )
     (printout t "Fin del juego!" crlf )
     else
@@ -640,7 +640,7 @@
     (multislot visitados)
 )
 
-(deffunction heuristico(?blancas ?negras ?color)
+(deffunction heuristico (?blancas ?negras ?color)
     (return (random 1 100))
 )
 
@@ -664,6 +664,14 @@
     (assert (control_busqueda))
 )
 
+; Regla para hacer reset al arbol cuando se termine la busqueda.
+(defrule reset_arbol
+    (eliminar_posibles)
+    ?e <- (estado)
+    =>
+    (retract ?e)
+)
+
 ; Regla para eliminar las posibles soluciones cuando se acaba la busqueda.
 (defrule eliminar_posibles
     (eliminar_posibles)
@@ -674,9 +682,9 @@
 
 ; Regla para determinar que la ia ha acabado.
 (defrule terminado_ia
-    ?f <- (eliminar_posibles)
+    ?p <- (eliminar_posibles)
     =>
-    (retract ?f)
+    (retract ?p)
     (assert (ia_movido))
     (return)
 )
@@ -739,7 +747,7 @@
     (estado (nivel ?n) (valor ?valor))
     (test (not (eq ?valor FALSE )))
     =>
-    ; Creamos el control para busqueda y recorremos.
+    ; Creamos el control para busqueda e insertamos hecho para recorrer el arbol.
     (reset_control_busqueda)
     (assert (recorrer_arbol))
 )
@@ -822,7 +830,6 @@
 (defrule crear_arbol
     (not (recorrer_arbol))
     (not (eliminar_posibles))
-    (not (abortar_crear_arbol))
 
     ; Si hay estado no final...
     ; => No esta en ?*PROF_MAX*, se compara nivel.
@@ -884,8 +891,7 @@
             (bind ?heur FALSE)
         )
         (assert (estado (id ?*CONTADOR_ID*) (id_padre ?id_padre) (nivel ?nivel)
-                        (blancas $?blancas) (negras $?negras) (valor ?heur)
-                        (movimiento ?movimiento)))
+                (blancas $?blancas) (negras $?negras) (valor ?heur) (movimiento ?movimiento)))
         (incrementar_contador)
     )
 
