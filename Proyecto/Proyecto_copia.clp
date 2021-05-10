@@ -658,7 +658,7 @@
 ; => nodo_actual = 0.
 ; => visitados = vacio.
 (deffunction reset_control_busqueda ()
-    (assert (control))
+    (assert (control_busqueda))
 )
 
 ; Regla para eliminar las posibles soluciones cuando se acaba la busqueda.
@@ -720,6 +720,105 @@
     (foreach ?mov ?movimientos
         (aplicar_movimiento_ia $?blancas $?negras ?mov ?color ?id ?nuevo_nivel FALSE)
     )
+)
+
+; Regla para explorar arbol "hacia abajo".
+(defrule bajar
+    (recorrer_arbol)
+
+    ?control <- (control_busqueda (nodo_actual ?nodo_actual) (visitados $?visitados))
+    ?actual <- (estado (id ?id_a) (alfa ?alfa) (beta ?beta))
+    ?hijo <- (estado (id ?id_h) (id_padre ?id_padre) (nivel ?nivel_h))
+    
+    ; Nodo actual tiene un hijo no visitado.
+    (test (and (eq ?id_padre ?id_a ?nodo_actual) (not (in ?id_h $?visitados))))
+    =>
+    ; Si el hijo no visitado no esta en la profundida maxima... hacer nodo actual.
+    (if (not (eq ?nivel_h ?*MAX_PROF*)) then
+        (bind $?visitados (append ?id_h $?visitados))
+        (modify ?control (nodo_actual ?id_h) (visitados ?visitados))
+
+        ; Setear ?alf y ?beta del padre.
+        (modify ?hijo (alfa ?alfa) (beta ?beta))
+    )
+)
+
+; Regla para "subir" el valor de un nodo a su padre ("propagar").
+(defrule subir
+    (recorrer_arbol)
+
+    ?control <- (control_busqueda (nodo_actual ?nodo_actual) (visitados $?visitados))
+    ?actual <- (estado (id ?id_a) (id_padre ?id_abuelo) (nivel ?nivel_a) (valor ?valor_a)
+        (alfa ?alfa_a) (beta ?beta_a))
+    ?hijo <- (estado (id ?id_h) (id_padre ?id_padre) (nivel ?nivel_h) (valor ?valor_h) 
+        (movimiento ?mov) (alfa ?alfa_h) (beta ?beta_h))
+    
+    ; Nodo actual con hijo con valor == FALSE.
+    (test (not (eq ?valor_h FALSE)))
+    (test (eq ?id_padre ?id_a ?nodo_actual))
+    =>
+    ; Para saber si es nodo min/max.
+    (bind ?max (= 0 (mod ?nivel_a 2)))
+
+    ; Nodo actual es MAX.
+    (if ?max then
+        ; Setear a valor por defecto, -INF.
+        (if (not ?valor_a) then
+            (bind ?valor_a ?*M_INF*)
+        )
+        
+        ; Nuevo valor:
+        ; => Max (valor_previo, valor_hijo).
+        (bind ?nuevo_valor_a (max ?valor_a ?valor_h))
+
+        ; Nuevo valor Alfa:
+        ; => Max (valor_previo_alfa, nuevo_valor_nodo).
+        (bind ?nuevo_alfa_a (max ?alfa_a ?nuevo_valor_a))
+
+        ; Nuevo valor Beta:
+        ; => Se mantiene igual.
+        (bind ?nuevo_beta_a ?beta_a)
+    ; Nodo actual es MIN.    
+    else
+        ; Setear a valor por defecto, INF.
+        (if (not ?valor_a) then
+            (bind ?valor_a ?*INF*)
+        )
+
+        ; Nuevo valor:
+        ; => Min (valor_previo, valor_hijo).
+        (bind ?nuevo_valor_a (min ?valor_a ?valor_h))
+
+        ; Nuevo valor Alfa:
+        ; => Se mantiene igual.
+        (bind ?nuevo_alfa_a ?alfa_a)
+
+        ; Nuevo valor Beta:
+        ; => Min (valor_previo_beta, nuevo_valor_nodo).
+        (bind ?nuevo_beta_a (min ?beta_a ?nuevo_valor_a))
+    )
+
+    ; Modificamos los valores.
+    (modify ?actual (valor ?nuevo_valor_a) (alfa ?nuevo_alfa_a) (beta ?nuevo_beta_a))
+
+    ; Si Alfa > Beta:
+    ; => Podamos, omitimos resto de hijos y el padre del actual es nuevo actual.
+    (if (> ?nuevo_alfa_a ?nuevo_beta_a) then
+        (bind ?nodo_actual ?id_abuelo)
+        (if (not ?nodo_actual) then
+            (bind ?nodo_actual 0)
+        )
+        (modify ?control (nodo_actual ?nodo_actual))
+    )
+
+    ; Si Nodo actual es raiz:
+    ; => Crear una posible solucion con valor y movimiento del hijo.
+    (if (= 0 ?id_a) then   
+        (assert (posible_solucion (valor ?valor_h) (movimiento ?mov)))
+    )
+
+    ; Eliminar hijo.
+    (retract ?hijo)
 )
 
 ; Regla cuando se ha terminado la búsqueda.
