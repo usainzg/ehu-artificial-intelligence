@@ -580,7 +580,6 @@
         (if ?r then
             (retract ?t)
         else
-            (printout t "TURNO DE LA IA...!!!" crlf)
             (assert (turno_ia))
             (return)
         )
@@ -747,10 +746,9 @@
 
 ; Regla para inicio de la IA.
 (defrule inicio_ia
-    (turno_ia)
+    ?tt <- (turno_ia)
     ?t <- (tablero (blancas $?blancas) (negras $?negras))
     =>
-    (printout t "HOLA" crlf)
     ; Calcular posibles movimientos.
     (bind ?movimientos (movimientos $?blancas $?negras (not ?*COLOR_JUG*) FALSE))
 
@@ -817,6 +815,7 @@
         ; Resetear el contador de ids.
         (reset_contador)
     )
+    (retract ?tt)
 )
 
 ; Regla para crear nodos del árbol.
@@ -1061,7 +1060,9 @@
     (printout t "=> Blancas: " ?blancas crlf)
 
     (assert(tablero (blancas ?blancas) (negras ?negras))) ; Introducimos tablero inicial
+    (printout t "====> TABLERO INICIAL <====" crlf)
     (print_tablero ?blancas ?negras) ; Mostramos tablero inicial
+    (printout t "===========================" crlf)
 )
 
 ; Regla que inicia el tablero cuando se detecta (init_global),
