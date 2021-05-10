@@ -678,6 +678,79 @@
     (return)
 )
 
+; Regla para inicio de la IA.
+(defrule inicio
+    ; TODO: comprobar turno? ARREGLAR!
+    ?t <- (tablero (blancas $?blancas) (negras $?negras))
+    =>
+    ; Calcular posibles movimientos.
+    (bind ?movimientos (movimientos $?blancas $?negras (not ?*COLOR_J*) FALSE))
+
+    ; Solo un movimiento posible?
+    ; => Evitar realizar la busqueda...
+    (bind ?unica_posib FALSE)
+    (bind ?buscar TRUE)
+    (bind $?nuevas_blancas $?blancas)
+    (bind $?nuevas_negras $?negras)
+
+    ; Mientras solo un movimiento sea posible...
+    (while (and (= 1 (length$ ?movimientos)) ?buscar)
+        (bind ?mov (nth$ 1 ?movimientos))
+        (if (not ?unica_posib) then
+            (bind ?unica_posib ?mov)
+        )
+
+        ; Se puede continuar el movimiento capturando piezas, anadir la ultima captura
+        ; al movimiento (hasta ahora).
+        (if (and ?*MOV_FORZADO* (not ?*CORONADO*)) then
+            (if (not (eq ?unica_posib ?mov)) then
+                (bind ?unica_posib (str-cat (sub-string 1 (- (length ?unica_posib) 3) ?unica_posib) (sub-string 3 (length ?mov) ?mov)))
+            )
+
+            ; Calcular nuevas posiciones y movimientos.
+            (bind ?pieza (sub-string (- (length ?mov) 1) (length ?mov) ?mov))
+            (bind ?res (calcular_movimiento $?nuevas_blancas $?nuevas_negras ?mov (not ?*COLOR_J*)))
+            (bind ?index_separador (str-index "|" ?res))
+            (bind $?nuevas_blancas (explode$ (sub-string 1 (- ?index_separador 1) ?res)))
+            (bind $?nuevas_negras (explode$ (sub-string (+ ?index_separador 1) (length ?res) ?res)))
+            (bind ?movimientos (movimientos $?nuevas_blancas $?nuevas_negras (not ?*COLOR_J*) ?pieza))
+        ; Siguiente movimiento es normal, el movimiento realizado es la unica posibilidad y no hace falta arbol.
+        else
+            (bind ?buscar FALSE)
+        )
+    )
+
+    ; Mas de un movimiento encontrado...
+    (if ?unica_posib then
+        ; Solo buscamos si ?*MOV_FORZADO* y no ?*CORONADO*.
+        (bind ?buscar (and ?*MOV_FORZADO* (not ?*CORONADO*)))
+    )
+
+    ; Solo un movimiento... realizar movimiento y finalizar.
+    (if (not ?buscar) then
+        (bind ?*MOV_IA* ?unica_posib)
+        (assert (eliminar_posibles))
+    ; Hay que realizar la busqueda (hay IA)...
+    else
+        (bind ?num_piezas (+ (length$ $?blancas) (length $?negras)))
+        ; Dependiendo del numero de piezas... cambiamos la profundidad de busqueda.
+        ; TODO: cambiar para mas valores? PROBAR!
+        (if (>= ?num_piezas 10) then
+            (bind ?*MAX_PROF* 4)
+        else
+            (bind ?*MAX_PROF* 6)
+        )))
+
+        (printout t "=> Profundidad: " ?*MAX_PROF* crlf)
+        
+        ; Creamos el nodo raiz.
+        (assert (estado (id 0) (id_padre FALSE) (nivel 0) (blancas $?blancas) (negras $?negras) (movimiento FALSE)))
+        
+        ; Resetear el contador de ids.
+        (reset_contador)
+    )
+)
+
 ; Regla para determinar que el árbol ha terminado de crearse.
 (defrule arbol_creado
     (not (recorrer_arbol))
@@ -819,6 +892,24 @@
 
     ; Eliminar hijo.
     (retract ?hijo)
+)
+
+; Regla para "subir" el puntero al nodo actual.
+(defrule subir_nodo_actual
+    ?f <- (recorrer_arbol)
+
+    ?control <- (control (nodo_actual ?nodo_actual))
+    ?actual <- (estado (id ?id_a) (id_padre ?id_padre) (nivel ?nivel) (valor ?valor)
+                (alfa ?alfa_a) (beta ?beta_a))
+    
+    ; Nodo actual no es nodo raiz.
+    (test (eq ?id_a ?nodo_actual))
+    (test (not (eq ?id_padre FALSE)))
+    =>
+    (bind ?nodo_actual ?id_padre)
+    
+    ; El padre del actual se convierte en actual.
+    (modify ?control (nodo_actual ?nodo_actual))
 )
 
 ; Regla cuando se ha terminado la búsqueda.
