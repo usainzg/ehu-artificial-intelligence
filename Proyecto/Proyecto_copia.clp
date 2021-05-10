@@ -34,9 +34,9 @@
 
 ; Tablero temporal para movimientos.
 (deftemplate tablero_tmp
-  (multislot blancas)
-  (multislot negras)
-  (slot pieza_a_mover)
+(multislot blancas)
+(multislot negras)
+(slot pieza_a_mover)
 )
 
 ; ==================> FUNCIONES AUXILIARES <==================
@@ -220,7 +220,7 @@
             (loop-for-count (?i 1 (length$ ?nuevas_enemigas))
                 (bind ?pieza (nth$ ?i ?nuevas_enemigas))
                 (bind ?pos (sub-string 2 3 ?pieza))
-               
+            
                 ; Pieza capturada encontrada.
                 (if (eq ?pos_capturada ?pos) then
                     (bind ?encontrada TRUE)
@@ -414,9 +414,8 @@
             (bind ?y (string-to-field (sub-string 3 3 ?pieza)))
             
             ; Si es peon, llamamos a mov_peon para saber los movimientos posibles.
-            (if (eq ?tipo ?*FICHA_PEON*) then
-                (bind ?mov (mov_peon ?x ?y ?direccion ?atacantes ?defendientes))
-            )
+            (bind ?mov (mov_peon ?x ?y ?direccion ?atacantes ?defendientes))
+            
 
             ; TODO: Aqui podemos mover la dama tambien. (if (eq ?tipo ?*FICHA_DAMA*))...
             
@@ -553,7 +552,7 @@
     (movimientos $?b $?n ?*TURNO* ?p)
     ; Si hay movimientos forzados, tomamos otro turno.
     (if (not ?*MOV_FORZADO*) then
-        (turno $?b $?n FALSE ?p)
+        (turno $?b $?n ?p)
     else ; No hay movimientos forzados, creamos tablero normal y cambiamos turno.
         (assert (tablero (blancas $?b) (negras $?n)))
         (cambiar_turno)
@@ -582,6 +581,7 @@
             (retract ?t)
         else
             (printout t "TURNO DE LA IA...!!!" crlf)
+            (assert (turno_ia))
             (return)
         )
     )
@@ -595,7 +595,7 @@
     (bind ?*MOV_FORZADO* FALSE)
     (bind ?*CORONADO* FALSE)
     (printout t "=> Movimiento IA: " ?mov crlf)
-    (aplicar_movimiento $?b $?n ?mov (not ?*COLOR_J*)) ; Aplicamos movimiento.
+    (aplicar_movimiento $?b $?n ?mov (not ?*COLOR_JUG*)) ; Aplicamos movimiento.
     (bind ?*MOV_IA* FALSE) ; Reset de la variable global.
     (retract ?f) ; Eliminamos los hechos.
     (retract ?t) ; Eliminamos los hechos.
@@ -641,6 +641,10 @@
     (multislot visitados)
 )
 
+(deffunction heuristico(?blancas ?negras ?color)
+    (return (random 1 100))
+)
+
 ; Funcion auxiliar para incrementar ?*CONTADOR_ID*.
 (deffunction incrementar_contador ()
     (bind ?*CONTADOR_ID* (+ ?*CONTADOR_ID* 1))
@@ -678,13 +682,77 @@
     (return)
 )
 
+; Calcula los resultados de aplicar el movimiento y crea los hechos.
+(deffunction aplicar_movimiento_ia (?blancas ?negras ?mov ?color ?id_padre ?nivel ?mov_acc)
+    
+    ; Calcular resultados del movimiento.
+    (bind ?resultado (calcular_movimiento ?blancas ?negras ?mov ?color))
+
+    ; Extraer fichas del resultado.
+    (bind ?index_separador (str-index "|" ?resultado))
+    (bind ?nuevas_blancas (explode$ (sub-string 1 (- ?index_separador 1) ?resultado)))
+    (bind ?nuevas_negras (explode$ (sub-string (+ ?index_separador 1) (length ?resultado) ?resultado)))
+
+    ; Creamos un nuevo id.
+    (bind ?id ?*CONTADOR_ID*)
+    (incrementar_contador)
+
+    ; Hay movimiento parcial anterior.
+    (if ?mov_acc then
+        (bind ?movimiento (str-cat (sub-string 1 (- (length ?mov_acc) 3) ?mov_acc) (sub-string 3 (length ?mov) ?mov)))
+    ; No hay movimiento parcial anterior.
+    else
+        (bind ?movimiento ?mov)
+    )
+
+    ; Si alguno de los lados no tiene fichas, estado final, anadir heuristico.
+    (if (or (= (length$ ?nuevas_blancas) 0) (= (length$ ?nuevas_negras) 0)) then
+        (bind ?heur (heuristico ?nuevas_blancas ?nuevas_negras (not ?*COLOR_JUG*)))
+
+        (return (assert (estado (id ?id) (id_padre ?id_padre) (nivel ?nivel) (valor ?heur)
+                (blancas ?nuevas_blancas) (negras ?nuevas_negras) (movimiento ?movimiento))))
+    ; Si movimiento forzado... puede haber mas capturas, crear estado_tmp para buscar.
+    else (if (and ?*MOV_FORZADO* (not ?*CORONADO*)) then
+        (bind ?long (length ?mov))
+        (bind ?pos_destino (sub-string (- ?long 1) ?long ?mov))
+        (return (assert (estado_tmp (id ?id_padre) (id_padre ?id_padre) (nivel ?nivel)
+                (blancas ?nuevas_blancas) (negras ?nuevas_negras) (pieza_a_mover ?pos_destino) (movimiento ?movimiento))))
+    ; Turno normal.
+    else
+        ; Profundidad maxima alcanzada... estado final, anadir heuristico.
+        (if (= ?nivel ?*MAX_PROF*) then
+            (bind ?heur (heuristico ?nuevas_blancas ?nuevas_negras (not ?*COLOR_JUG*)))
+        else
+            (bind ?heur FALSE)
+        )
+
+        (return (assert (estado (id ?id) (id_padre ?id_padre) (nivel ?nivel) (valor ?heur)
+                (blancas ?nuevas_blancas) (negras ?nuevas_negras) (movimiento ?movimiento))))
+    ))
+)
+
+; Regla para determinar que el árbol ha terminado de crearse.
+(defrule arbol_creado
+    (not (recorrer_arbol))
+    (not (eliminar_posibles))
+
+    ; Hay estado final.
+    (estado (nivel ?n) (valor ?valor))
+    (test (not (eq ?valor FALSE )))
+    =>
+    ; Creamos el control para busqueda y recorremos.
+    (reset_control_busqueda)
+    (assert (recorrer_arbol))
+)
+
 ; Regla para inicio de la IA.
-(defrule inicio
-    ; TODO: comprobar turno? ARREGLAR!
+(defrule inicio_ia
+    (turno_ia)
     ?t <- (tablero (blancas $?blancas) (negras $?negras))
     =>
+    (printout t "HOLA" crlf)
     ; Calcular posibles movimientos.
-    (bind ?movimientos (movimientos $?blancas $?negras (not ?*COLOR_J*) FALSE))
+    (bind ?movimientos (movimientos $?blancas $?negras (not ?*COLOR_JUG*) FALSE))
 
     ; Solo un movimiento posible?
     ; => Evitar realizar la busqueda...
@@ -709,11 +777,11 @@
 
             ; Calcular nuevas posiciones y movimientos.
             (bind ?pieza (sub-string (- (length ?mov) 1) (length ?mov) ?mov))
-            (bind ?res (calcular_movimiento $?nuevas_blancas $?nuevas_negras ?mov (not ?*COLOR_J*)))
+            (bind ?res (calcular_movimiento $?nuevas_blancas $?nuevas_negras ?mov (not ?*COLOR_JUG*)))
             (bind ?index_separador (str-index "|" ?res))
             (bind $?nuevas_blancas (explode$ (sub-string 1 (- ?index_separador 1) ?res)))
             (bind $?nuevas_negras (explode$ (sub-string (+ ?index_separador 1) (length ?res) ?res)))
-            (bind ?movimientos (movimientos $?nuevas_blancas $?nuevas_negras (not ?*COLOR_J*) ?pieza))
+            (bind ?movimientos (movimientos $?nuevas_blancas $?nuevas_negras (not ?*COLOR_JUG*) ?pieza))
         ; Siguiente movimiento es normal, el movimiento realizado es la unica posibilidad y no hace falta arbol.
         else
             (bind ?buscar FALSE)
@@ -739,7 +807,7 @@
             (bind ?*MAX_PROF* 4)
         else
             (bind ?*MAX_PROF* 6)
-        )))
+        )
 
         (printout t "=> Profundidad: " ?*MAX_PROF* crlf)
         
@@ -749,20 +817,6 @@
         ; Resetear el contador de ids.
         (reset_contador)
     )
-)
-
-; Regla para determinar que el árbol ha terminado de crearse.
-(defrule arbol_creado
-    (not (recorrer_arbol))
-    (not (eliminar_posibles))
-
-    ; Hay estado final.
-    (estado (nivel ?n) (valor ?valor))
-    (test (not (eq ?valor FALSE )))
-    =>
-    ; Creamos el control para busqueda y recorremos.
-    (reset_control_busqueda)
-    (assert (recorrer_arbol))
 )
 
 ; Regla para crear nodos del árbol.
@@ -781,9 +835,9 @@
     
     ; Dependiendo del nivel... el siguiente nivel es IA o jugador.
     (if (= 0 (mod ?nuevo_nivel 2)) then
-        (bind ?color ?*COLOR_J*)
+        (bind ?color ?*COLOR_JUG*)
     else
-        (bind ?color (not ?*COLOR_J*))
+        (bind ?color (not ?*COLOR_JUG*))
     )
 
     ; Calculamos los movimientos.
@@ -795,6 +849,51 @@
     )
 )
 
+; Regla para crear nodos a partir de estados intermedios.
+(defrule continuar_mov
+    (not (recorrer_arbol))
+    (not (limpiar))
+
+    ; Si existe un estado_tmp y nivel es menor o igual a ?*MAX_PROF*...
+    ?e <- (estado_tmp (id ?id) (id_padre ?id_padre) (nivel ?nivel) (blancas $?blancas)
+                    (negras $?negras) (pieza_a_mover ?pieza) (movimiento ?movimiento))
+    (test (<= ?nivel ?*MAX_PROF*))
+    =>
+    ; Miramos si es movimiento de IA o jugador.
+    (if (= 0 (mod ?nivel 2)) then
+        (bind ?color ?*COLOR_JUG*)
+    else
+        (bind ?color (not ?*COLOR_JUG*))
+    )
+
+    ; Calculamos todos los movimientos.
+    (bind ?movimientos (movimientos $?blancas $?negras ?color ?pieza))
+    
+    ; Si hay movimientos forzados... crear los nuevos estados.
+    (if ?*MOV_FORZADO* then
+        (foreach ?mov ?movimientos
+            (aplicar_movimiento_ia $?blancas $?negras ?mov ?color ?id ?nivel ?movimiento)
+        )
+    ; Si no hay movimientos forzados... crear tablero normal. 
+    else
+        (bind ?movimientos_opp (movimientos $?blancas $?negras (not ?color) FALSE))
+        
+        ; Si estamos en profundidad maxima... calcular heuristico.
+        (if (or (= ?nivel ?*MAX_PROF*) (eq 0 (length$ ?movimientos_opp))) then
+            (bind ?heur (heuristico $?blancas $?negras (not ?*COLOR_JUG*)))
+        else
+            (bind ?heur FALSE)
+        )
+        (assert (estado (id ?*CONTADOR_ID*) (id_padre ?id_padre) (nivel ?nivel)
+                        (blancas $?blancas) (negras $?negras) (valor ?heur)
+                        (movimiento ?movimiento)))
+        (incrementar_contador)
+    )
+
+    ; Eliminar el estado_tmp
+    (retract ?e)
+)
+
 ; Regla para explorar arbol "hacia abajo".
 (defrule bajar
     (recorrer_arbol)
@@ -804,11 +903,11 @@
     ?hijo <- (estado (id ?id_h) (id_padre ?id_padre) (nivel ?nivel_h))
     
     ; Nodo actual tiene un hijo no visitado.
-    (test (and (eq ?id_padre ?id_a ?nodo_actual) (not (in ?id_h $?visitados))))
+    (test (and (eq ?id_padre ?id_a ?nodo_actual) (not (item_in_vector ?id_h $?visitados))))
     =>
     ; Si el hijo no visitado no esta en la profundida maxima... hacer nodo actual.
     (if (not (eq ?nivel_h ?*MAX_PROF*)) then
-        (bind $?visitados (append ?id_h $?visitados))
+        (bind $?visitados (append_to_vector ?id_h $?visitados))
         (modify ?control (nodo_actual ?id_h) (visitados ?visitados))
 
         ; Setear ?alf y ?beta del padre.
@@ -898,7 +997,7 @@
 (defrule subir_nodo_actual
     ?f <- (recorrer_arbol)
 
-    ?control <- (control (nodo_actual ?nodo_actual))
+    ?control <- (control_busqueda (nodo_actual ?nodo_actual))
     ?actual <- (estado (id ?id_a) (id_padre ?id_padre) (nivel ?nivel) (valor ?valor)
                 (alfa ?alfa_a) (beta ?beta_a))
     
@@ -918,9 +1017,9 @@
     ?f <- (recorrer_arbol)
 
     ; Nodo actual == nodo raiz.
-    ?control <- (control (nodo_actual 0) (visitados $?visitados))
+    ?control <- (control_busqueda (nodo_actual 0) (visitados $?visitados))
     ?origen <- (estado (id 0) (valor ?valor_final))
-    ?solucion <- (pos_solucion (valor ?valor) (movimiento ?mov))
+    ?solucion <- (posible_solucion (valor ?valor) (movimiento ?mov))
     
     ; Una posible solucion con mismo valor que el nodo raiz.
     (test (eq ?valor ?valor_final))
