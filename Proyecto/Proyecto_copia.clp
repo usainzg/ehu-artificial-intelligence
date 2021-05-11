@@ -580,7 +580,7 @@
     ; Calculamos todos los movimientos posibles.
     (movimientos $?b $?n ?*TURNO* ?p)
     ; Si hay movimientos forzados, tomamos otro turno.
-    (if (not ?*MOV_FORZADO*) then
+    (if ?*MOV_FORZADO* then
         (turno $?b $?n ?p)
     else ; No hay movimientos forzados, creamos tablero normal y cambiamos turno.
         (assert (tablero (blancas $?b) (negras $?n)))
