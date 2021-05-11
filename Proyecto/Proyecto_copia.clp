@@ -791,6 +791,9 @@
     (return)
 )
 
+; TODO: llamar a funcion utilidad cuando llegamos a nodo hoja, llamar a heuristico (funcion ev.)
+; solo cuando alzancamos nivel maximo profundidad.
+
 ; Calcula los resultados de aplicar el movimiento y crea los hechos.
 (deffunction aplicar_movimiento_ia (?blancas ?negras ?mov ?color ?id_padre ?nivel ?mov_acc)
     
