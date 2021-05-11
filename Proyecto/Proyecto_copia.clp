@@ -152,6 +152,11 @@
     (return (cuantas_piezas_tipo ?piezas ?*FICHA_DAMA*))
 )
 
+; Funcion auxiliar para saber cuantos peones hay.
+(deffunction cuantas_peones (?piezas)
+    (return (cuantas_piezas_tipo ?piezas ?*FICHA_PEON*))
+)
+
 ; ==================> PARTE DEL JUEGO PARA JUGADOR <==================
 
 ; Funcion que calcula el tablero despues de haber realizado el movimiento ?mov.
@@ -215,8 +220,12 @@
 
     ; Si encontramos la ficha...
     (if ?encontrada then
-        ; Reemplazamos la pieza original por la movida ("la nueva").
-        (bind ?nuevas_aliadas (replace$ ?aliadas ?indice_ficha ?indice_ficha ?pieza_movida))
+        ; Si hemos hecho dama... borramos esa pieza del nuevo tablero.
+        ;(if ?*CORONADO* then
+        ;    (bind ?nuevas_aliadas (delete$ ?aliadas ?indice_ficha ?indice_ficha))
+        ;else
+            (bind ?nuevas_aliadas (replace$ ?aliadas ?indice_ficha ?indice_ficha ?pieza_movida))
+        ;)
     else
         ; Si no... error! => salir.
         (printout t "=> Error: " ?mov " no encontrado!" crlf)
@@ -323,7 +332,8 @@
             ; puede haber una dama o un peon.
             (bind ?posibles_piezas (create$
                 (sym-cat ?*FICHA_PEON* ?pos_x ?pos_y)
-                (sym-cat ?*FICHA_DAMA* ?pos_x ?pos_y))
+                ;(sym-cat ?*FICHA_DAMA* ?pos_x ?pos_y)
+                )
             )
             
             (bind ?ocupada FALSE)
@@ -349,7 +359,8 @@
                     ; puede haber una dama o un peon.
                     (bind ?sig_posibles_piezas (create$
                         (sym-cat ?*FICHA_PEON* ?sig_pos_x ?sig_pos_y)
-                        (sym-cat ?*FICHA_DAMA* ?sig_pos_x ?sig_pos_y))
+                        ;(sym-cat ?*FICHA_DAMA* ?sig_pos_x ?sig_pos_y)
+                        )
                     )
 
                     (bind ?sig_ocupada FALSE)
@@ -481,7 +492,7 @@
 
         ; Se pide la ficha a mover (origen)
         (printout t crlf)
-        (printout t "Que ficha quieres mover? xy: ")
+        (printout t "=> Que ficha quieres mover? xy: ")
         (bind ?pieza (str-cat (read)))
 
         ; DEBUG => TODO: UNAI!!! borrar al acabar
@@ -515,7 +526,7 @@
 
             ; Pedimos a que posicion la quiere mover.
             (printout t crlf)
-            (printout t "A que posicion quieres moverla? xy: ")
+            (printout t "=> A que posicion quieres moverla? xy: ")
             (bind ?posicion (str-cat (read)))
             
             ; TODO: borrar???
@@ -586,12 +597,20 @@
     ; No es posible ningun movimiento... fin del juego.
     (if (eq (length ?pos_mov) 0) then
         ; Comprobamos quien ha ganado...
-        (if (eq ?*TURNO* FALSE) then
+        (bind ?damas_blancas (cuantas_damas $?b))
+        (bind ?damas_negras (cuantas_damas $?n))
+        
+        (if (> ?damas_blancas ?damas_negras) then
             (assert(ganan_blancas))
         else
             (assert(ganan_negras))
-    )
-    (printout t "Fin del juego!" crlf )
+        )
+        ;(if (eq ?*TURNO* FALSE) then
+        ;    (assert(ganan_blancas))
+        ;else
+        ;    (assert(ganan_negras))
+        ;)
+        (printout t "Fin del juego!" crlf )
     else
         (bind ?r (turno $?b $?n FALSE))
         ; Turno jugador completado...
@@ -732,9 +751,9 @@
     else
         (bind ?movimiento ?mov)
     )
-
-    ; Si alguno de los lados no tiene fichas, estado final, anadir heuristico.
-    (if (or (= (length$ ?nuevas_blancas) 0) (= (length$ ?nuevas_negras) 0)) then
+    
+    ; Si alguno de los lados no tiene PEONES, estado final, add heuristico.
+    (if (or (= (cuantas_peones ?nuevas_blancas) 0) (= (cuantas_peones ?nuevas_negras) 0)) then
         (bind ?heur (heuristico ?nuevas_blancas ?nuevas_negras (not ?*COLOR_JUG*)))
 
         (return (assert (estado (id ?id) (id_padre ?id_padre) (nivel ?nivel) (valor ?heur)
@@ -834,7 +853,7 @@
         (if (>= ?num_piezas 10) then
             (bind ?*MAX_PROF* 4)
         else
-            (bind ?*MAX_PROF* 4)
+            (bind ?*MAX_PROF* 6)
         )
 
         (printout t "=> Profundidad: " ?*MAX_PROF* crlf)
@@ -1007,6 +1026,7 @@
     ; Si Alfa > Beta:
     ; => Podamos, omitimos resto de hijos y el padre del actual es nuevo actual.
     (if (> ?nuevo_alfa_a ?nuevo_beta_a) then
+        (printout t "=> PODANDO... " ?nuevo_alfa_a " " ?nuevo_beta_a)
         (bind ?nodo_actual ?id_abuelo)
         (if (not ?nodo_actual) then
             (bind ?nodo_actual 0)
