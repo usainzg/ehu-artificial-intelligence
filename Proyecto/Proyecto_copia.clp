@@ -162,6 +162,56 @@
     (return (cuantas_piezas_tipo ?piezas ?*FICHA_PEON*))
 )
 
+; ==================> PARTE DEL HEURISTICO <==================
+
+; Funcion que calcula el valor de las piezas usando los valores asignados
+; en las variables globales del heuristico.
+(deffunction calcular_valor_piezas (?piezas)
+    (bind ?peones (cuantas_peones ?piezas))
+    (bind ?valor_peones (* ?peones ?*HEU_VALOR_PEON*))
+
+    ; Se premia mas damas, dado que valor por cada dama es mayor.
+    (bind ?damas (cuantas_damas ?piezas))
+    (bind ?valor_damas (* ?damas ?*HEU_VALOR_DAMA*))
+
+    (return (+ ?valor_peones ?valor_damas))
+)
+
+; Funcion que calcula la diferencia entre los valores de las piezas
+; aliadas y contrarias.
+(deffunction heuristico_diferencia (?aliadas ?contrarias)
+    (bind ?result_aliadas (calcular_valor_piezas ?aliadas))
+    (bind ?result_contrarias  (calcular_valor_piezas ?contrarias))
+    (bind ?resultado (- ?result_aliadas ?result_contrarias))
+    (return ?resultado)
+)
+
+; Funcion para el heuristico.
+(deffunction heuristico (?blancas ?negras ?color)
+    (if ?color then ; Si juego con blancas...
+        (if (eq 0 (cuantas_peones ?negras)) then ; Si no hay del otro color => Ganar (INF)
+            (return ?*INF*)
+        )
+        (if (eq 0 (cuantas_peones ?blancas)) then ; Si no hay de mi color => Perder (-INF)
+            (return ?*M_INF*)
+        )
+        (bind ?aliadas ?blancas)
+        (bind ?contrarias ?negras)
+    else ; Si juego con negras...
+        (if (eq 0 (cuantas_peones ?blancas)) then ; ; Si no hay del otro color => Ganar (INF)
+            (return ?*INF*)
+        )
+        (if (eq 0 (cuantas_peones ?negras)) then ; Si no hay de mi color => Perder (-INF)
+            (return ?*M_INF*)
+        )
+        (bind ?aliadas ?negras)
+        (bind ?contrarias ?blancas)
+    )
+
+    ; En caso de no estar estar en casos basicos, calcular heuristico diferencia de valores.
+    (return (heuristico_diferencia ?aliadas ?contrarias))
+)
+
 ; ==================> PARTE DEL JUEGO PARA JUGADOR <==================
 
 ; Funcion que calcula el tablero despues de haber realizado el movimiento ?mov.
@@ -680,48 +730,6 @@
 (deftemplate control_busqueda
     (slot nodo_actual (default 0))
     (multislot visitados)
-)
-
-(deffunction calcular_valor_piezas (?piezas)
-    (bind ?peones (cuantas_peones ?piezas))
-    (bind ?valor_peones (* ?peones ?*HEU_VALOR_PEON*))
-
-    ; Se premia mas damas, dado que valor por cada dama es mayor.
-    (bind ?damas (cuantas_damas ?piezas))
-    (bind ?valor_damas (* ?damas ?*HEU_VALOR_DAMA*))
-
-    (return (+ ?valor_peones ?valor_damas))
-)
-
-(deffunction heuristico_diferencia (?aliadas ?contrarias)
-    (bind ?result_aliadas (calcular_valor_piezas ?aliadas))
-    (bind ?result_contrarias  (calcular_valor_piezas ?contrarias))
-    (bind ?resultado (- ?result_aliadas ?result_contrarias))
-    (return ?resultado)
-)
-
-(deffunction heuristico (?blancas ?negras ?color)
-    (if ?color then ; si juego con blancas
-        (if (eq 0 (cuantas_peones ?negras)) then ; gano si no hay del otro color
-            (return ?*INF*)
-        )
-        (if (eq 0 (cuantas_peones ?blancas)) then ; pierdo si no hay de mi color
-            (return ?*M_INF*)
-        )
-        (bind ?aliadas ?blancas)
-        (bind ?contrarias ?negras)
-    else
-        (if (eq 0 (cuantas_peones ?blancas)) then ; gano si no hay del otro color
-            (return ?*INF*)
-        )
-        (if (eq 0 (cuantas_peones ?negras)) then ; pierdo si no hay de mi color
-            (return ?*M_INF*)
-        )
-        (bind ?aliadas ?negras)
-        (bind ?contrarias ?blancas)
-    )
-    ; En caso de no estar estar en casos basicos, calcular diferencia de valores.
-    (return (heuristico_diferencia ?aliadas ?contrarias))
 )
 
 ; Funcion auxiliar para incrementar ?*CONTADOR_ID*.
