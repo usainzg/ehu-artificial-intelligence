@@ -20,6 +20,11 @@
     ?*MAX_PROF* = 6
     ?*INF* = 99999
     ?*M_INF* = -99999
+
+    ; Globales para heuristico
+    ?*HEU_VALOR_PEON* = 1
+    ?*HEU_VALOR_DAMA* = 2
+
 )
 
 ; ==================> TEMPLATES GENERALES <==================
@@ -677,8 +682,46 @@
     (multislot visitados)
 )
 
+(deffunction calcular_valor_piezas (?piezas)
+    (bind ?peones (cuantas_peones ?piezas))
+    (bind ?valor_peones (* ?peones ?*HEU_VALOR_PEON*))
+
+    ; Se premia mas damas, dado que valor por cada dama es mayor.
+    (bind ?damas (cuantas_damas ?piezas))
+    (bind ?valor_damas (* ?damas ?*HEU_VALOR_DAMA*))
+
+    (return (+ ?valor_peones ?valor_damas))
+)
+
+(deffunction heuristico_diferencia (?aliadas ?contrarias)
+    (bind ?result_aliadas (calcular_valor_piezas ?aliadas))
+    (bind ?result_contrarias  (calcular_valor_piezas ?contrarias))
+    (bind ?resultado (- ?result_aliadas ?result_contrarias))
+    (return ?resultado)
+)
+
 (deffunction heuristico (?blancas ?negras ?color)
-    (return (random 1 1000))
+    (if ?color then ; si juego con blancas
+        (if (eq 0 (cuantas_peones ?negras)) then ; gano si no hay del otro color
+            (return ?*INF*)
+        )
+        (if (eq 0 (cuantas_peones ?blancas)) then ; pierdo si no hay de mi color
+            (return ?*M_INF*)
+        )
+        (bind ?aliadas ?blancas)
+        (bind ?contrarias ?negras)
+    else
+        (if (eq 0 (cuantas_peones ?blancas)) then ; gano si no hay del otro color
+            (return ?*INF*)
+        )
+        (if (eq 0 (cuantas_peones ?negras)) then ; pierdo si no hay de mi color
+            (return ?*M_INF*)
+        )
+        (bind ?aliadas ?negras)
+        (bind ?contrarias ?blancas)
+    )
+    ; En caso de no estar estar en casos basicos, calcular diferencia de valores.
+    (return (heuristico_diferencia ?aliadas ?contrarias))
 )
 
 ; Funcion auxiliar para incrementar ?*CONTADOR_ID*.
