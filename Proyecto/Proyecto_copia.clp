@@ -659,7 +659,7 @@
 )
 
 (deffunction heuristico (?blancas ?negras ?color)
-    (return (random 1 100))
+    (return (random 1 1000))
 )
 
 ; Funcion auxiliar para incrementar ?*CONTADOR_ID*.
@@ -684,6 +684,7 @@
 
 ; Regla para hacer reset al arbol cuando se termine la busqueda.
 (defrule reset_arbol
+    (declare (salience 210))
     (eliminar_posibles)
     ?e <- (estado)
     =>
@@ -692,6 +693,7 @@
 
 ; Regla para eliminar las posibles soluciones cuando se acaba la busqueda.
 (defrule eliminar_posibles
+    (declare (salience 210))
     (eliminar_posibles)
     ?f <- (posible_solucion)
     =>
@@ -700,6 +702,7 @@
 
 ; Regla para determinar que la ia ha acabado.
 (defrule terminado_ia
+    (declare (salience 200))
     ?p <- (eliminar_posibles)
     =>
     (retract ?p)
@@ -758,6 +761,7 @@
 
 ; Regla para determinar que el árbol ha terminado de crearse.
 (defrule arbol_creado
+    (declare (salience 10))
     (not (recorrer_arbol))
     (not (eliminar_posibles))
 
@@ -846,6 +850,7 @@
 
 ; Regla para crear nodos del árbol.
 (defrule crear_arbol
+    (declare (salience 30))
     (not (recorrer_arbol))
     (not (eliminar_posibles))
 
@@ -875,8 +880,9 @@
 
 ; Regla para crear nodos a partir de estados intermedios.
 (defrule continuar_mov
+    (declare (salience 35))
     (not (recorrer_arbol))
-    (not (limpiar))
+    (not (eliminar_posibles))
 
     ; Si existe un estado_tmp y nivel es menor o igual a ?*MAX_PROF*...
     ?e <- (estado_tmp (id ?id) (id_padre ?id_padre) (nivel ?nivel) (blancas $?blancas)
@@ -919,6 +925,7 @@
 
 ; Regla para explorar arbol "hacia abajo".
 (defrule bajar
+    (declare (salience 110))
     (recorrer_arbol)
 
     ?control <- (control_busqueda (nodo_actual ?nodo_actual) (visitados $?visitados))
@@ -940,6 +947,7 @@
 
 ; Regla para "subir" el valor de un nodo a su padre ("propagar").
 (defrule subir
+    (declare (salience 120))
     (recorrer_arbol)
 
     ?control <- (control_busqueda (nodo_actual ?nodo_actual) (visitados $?visitados))
@@ -1018,6 +1026,7 @@
 
 ; Regla para "subir" el puntero al nodo actual.
 (defrule subir_nodo_actual
+    (declare (salience 100))
     ?f <- (recorrer_arbol)
 
     ?control <- (control_busqueda (nodo_actual ?nodo_actual))
@@ -1036,6 +1045,7 @@
 
 ; Regla cuando se ha terminado la búsqueda.
 (defrule fin_busqueda
+    (declare (salience 90))
     ; Estamos recorriendo el arbol.
     ?f <- (recorrer_arbol)
 
