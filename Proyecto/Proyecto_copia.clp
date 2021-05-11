@@ -853,9 +853,9 @@
         (if (>= ?num_piezas 10) then
             (bind ?*MAX_PROF* 3)
         else (if (>= ?num_piezas 8) then
-            (bind ?*MAX_PROF* 6)
-        else
             (bind ?*MAX_PROF* 4)
+        else
+            (bind ?*MAX_PROF* 6)
         ))
 
         (printout t "=> Profundidad: " ?*MAX_PROF* crlf)
