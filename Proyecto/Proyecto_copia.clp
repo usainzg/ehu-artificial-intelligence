@@ -88,24 +88,25 @@
 ; => Columna 0, Fila 0: se usan como indicadores (etiquetas).
 ; => Se va mostrando el tablero de forma progresiva formando lineas y
 ; "pintando" las fichas que hay en ?blancas y ?negras.
+; => No imprime las damas (Dxx).
 (deffunction print_tablero (?blancas ?negras)
     (loop-for-count (?i 0 ?*DIM*)
         (bind ?linea "")
         (bind ?fila (- ?*DIM* ?i))
         (loop-for-count (?col 0 ?*DIM*)
-            (if (= ?col 0) then ; columna etiqueta de numeros
+            (if (= ?col 0) then ; Columna etiqueta de numeros
                 (bind ?linea (str-cat ?fila))
                 (if (= ?fila 0) then
                     (bind ?linea (str-cat ?linea " "))
                 )
-            else (if (= ?fila 0) then ; fila etiqueta de numeros
+            else (if (= ?fila 0) then ; Fila etiqueta de numeros
                 (bind ?linea (str-cat ?linea (str-cat ?col " ")))
-            else ; dibujar fichas del tablero
-                (bind ?posibles_fichas ; posible ficha en ?col, ?fila => puede ser peon o dama 
+            else ; Dibujar fichas del tablero
+                (bind ?posibles_fichas ; Posible ficha en ?col, ?fila.
                     (create$ (sym-cat ?*FICHA_PEON* ?col ?fila))
                 )
                 (bind ?esta_ficha FALSE)
-                ; buscamos la ficha en las blancas
+                ; Buscamos la ficha en las blancas
                 (foreach ?p_fi ?posibles_fichas
                     (if (item_in_vector ?p_fi ?blancas) then
                         (bind ?tipo_ficha (sub-string 1 1 ?p_fi))
@@ -115,7 +116,7 @@
                         (break)
                     )
                 )
-                (if (not ?esta_ficha) then ; buscamos ficha en las negras
+                (if (not ?esta_ficha) then ; Buscamos ficha en las negras
                     (foreach ?p_fi ?posibles_fichas
                         (if (item_in_vector ?p_fi ?negras) then
                             (bind ?tipo_ficha (sub-string 1 1 ?p_fi))
@@ -227,7 +228,6 @@
 
     ; Creamos copias de las fichas:
     ; => Dependiendo del color, las aliadas y enemigas seran diferentes.
-    ; TODO: cambiar ?nuevas_enemigas ?enemigas.
     (if ?color then
         (bind ?aliadas ?blancas)
         (bind ?nuevas_aliadas ?blancas)
@@ -275,12 +275,7 @@
 
     ; Si encontramos la ficha...
     (if ?encontrada then
-        ; Si hemos hecho dama... borramos esa pieza del nuevo tablero.
-        ;(if ?*CORONADO* then
-        ;    (bind ?nuevas_aliadas (delete$ ?aliadas ?indice_ficha ?indice_ficha))
-        ;else
-            (bind ?nuevas_aliadas (replace$ ?aliadas ?indice_ficha ?indice_ficha ?pieza_movida))
-        ;)
+        (bind ?nuevas_aliadas (replace$ ?aliadas ?indice_ficha ?indice_ficha ?pieza_movida))
     else
         ; Si no... error! => salir.
         (printout t "=> Error: " ?mov " no encontrado!" crlf)
@@ -290,8 +285,6 @@
     (bind ?lista (explode$ ?mov))
     ; Si hemos capturado... 
     (if (> (length$ ?lista) 2) then
-        ; TODO: hace falta?
-        ; (bind ?nuevas_enemigas ?enemigas) 
         (bind ?capturadas (subseq$ ?lista 2 (- (length$ ?lista) 1))) ; Extraer capturadas.
         (foreach ?capturada ?capturadas
             (bind ?pos_capturada (str-cat ?capturada))
@@ -384,12 +377,8 @@
         ; Comprobamos si existe esa posicion en el tablero (cumple los limites).
         (if (existe_pos ?pos_x ?pos_y) then
             ; Creamos las posibles fichas que pueden estar en esa posicion,
-            ; puede haber una dama o un peon.
-            (bind ?posibles_piezas (create$
-                (sym-cat ?*FICHA_PEON* ?pos_x ?pos_y)
-                ;(sym-cat ?*FICHA_DAMA* ?pos_x ?pos_y)
-                )
-            )
+            ; solo puede haber peon.
+            (bind ?posibles_piezas (create$ (sym-cat ?*FICHA_PEON* ?pos_x ?pos_y)))
             
             (bind ?ocupada FALSE)
             ; Hay alguna ficha defendiente entre las posibles?
@@ -411,12 +400,8 @@
                 ; La siguiente posicion es legal? (cumple los limites).
                 (if (existe_pos ?sig_pos_x ?sig_pos_y) then
                     ; Creamos las posibles fichas que pueden estar en la siguiente posicion,
-                    ; puede haber una dama o un peon.
-                    (bind ?sig_posibles_piezas (create$
-                        (sym-cat ?*FICHA_PEON* ?sig_pos_x ?sig_pos_y)
-                        ;(sym-cat ?*FICHA_DAMA* ?sig_pos_x ?sig_pos_y)
-                        )
-                    )
+                    ; solo puede haber peon.
+                    (bind ?sig_posibles_piezas (create$ (sym-cat ?*FICHA_PEON* ?sig_pos_x ?sig_pos_y)))
 
                     (bind ?sig_ocupada FALSE)
                     ; Hay alguna ficha en la posicion siguiente? (sea atacante/defendiente).
@@ -500,9 +485,6 @@
             ; Si es peon, llamamos a mov_peon para saber los movimientos posibles.
             (bind ?mov (mov_peon ?x ?y ?direccion ?atacantes ?defendientes))
             
-
-            ; TODO: Aqui podemos mover la dama tambien. (if (eq ?tipo ?*FICHA_DAMA*))...
-            
             ; Si estamos comiendo ?*MOV_FORZADO* = TRUE, y antes no ?prev_forzado = FALSE,
             ; actualizamos ?movimientos para que este movimiento sea el unico disponible.
             ; Actualizamos tambien ?prev_forzado al valor de ?*MOV_FORZADO* (TRUE).
@@ -550,7 +532,7 @@
         (printout t "=> Que ficha quieres mover? xy: ")
         (bind ?pieza (str-cat (read)))
 
-        ; DEBUG => TODO: UNAI!!! borrar al acabar
+        ; Para acabar la ejecucion en el turno del jugador.
         (if (eq ?pieza "q") then
             (assert (salir))
             (return)
@@ -648,24 +630,33 @@
 (defrule turno
     ?t <- (tablero (blancas $?b) (negras $?n))
     =>
+    (bind ?damas_blancas (cuantas_damas $?b))
+    (bind ?damas_negras (cuantas_damas $?n))
+    
+    ; Cuando cualquiera consiga dos damas... gana.
+    (if (eq ?damas_blancas 2) then
+        (assert (ganan_blancas))
+        (return)
+    )
+    (if (eq ?damas_negras 2) then
+        (assert (ganan_negras))
+        (return)
+    )
+    
     (bind ?pos_mov (movimientos $?b $?n ?*TURNO* FALSE))
     ; No es posible ningun movimiento... fin del juego.
     (if (eq (length ?pos_mov) 0) then
         ; Comprobamos quien ha ganado...
-        (bind ?damas_blancas (cuantas_damas $?b))
-        (bind ?damas_negras (cuantas_damas $?n))
-        
         (if (> ?damas_blancas ?damas_negras) then
-            (assert(ganan_blancas))
+            (assert (ganan_blancas))
         else
-            (assert(ganan_negras))
+            (assert (ganan_negras))
         )
         ;(if (eq ?*TURNO* FALSE) then
         ;    (assert(ganan_blancas))
         ;else
         ;    (assert(ganan_negras))
         ;)
-        (printout t "Fin del juego!" crlf )
     else
         (bind ?r (turno $?b $?n FALSE))
         ; Turno jugador completado...
@@ -901,9 +892,9 @@
         (bind ?num_piezas (+ (cuantas_peones $?blancas) (cuantas_peones $?negras)))
         ; Dependiendo del numero de piezas... cambiamos la profundidad de busqueda.
         ; TODO: cambiar para mas valores? PROBAR!
-        (if (>= ?num_piezas 10) then
+        (if (>= ?num_piezas 8) then
             (bind ?*MAX_PROF* 3)
-        else (if (>= ?num_piezas 8) then
+        else (if (>= ?num_piezas 6) then
             (bind ?*MAX_PROF* 4)
         else
             (bind ?*MAX_PROF* 6)
@@ -1210,6 +1201,7 @@
 (defrule fin_juego
     (fin_juego)
     =>
+    (printout t "Fin del juego!" crlf )
     (halt)
 )
 
