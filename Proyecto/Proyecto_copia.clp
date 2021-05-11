@@ -25,6 +25,8 @@
     ?*HEU_VALOR_PEON* = 1
     ?*HEU_VALOR_DAMA* = 2
 
+    ?*HEU_PESO_PEONES* = 25
+    ?*HEU_PESO_DAMAS* = 50
 )
 
 ; ==================> TEMPLATES GENERALES <==================
@@ -185,6 +187,21 @@
     (bind ?result_contrarias  (calcular_valor_piezas ?contrarias))
     (bind ?resultado (- ?result_aliadas ?result_contrarias))
     (return ?resultado)
+)
+
+(deffunction heuristico_numero_piezas (?aliadas ?contrarias)
+    (bind ?n_peon_aliadas (cuantas_peones ?aliadas))
+    (bind ?n_peon_contrarias (cuantas_peones ?contrarias))
+    (bind ?n_dama_aliadas (cuantas_damas ?aliadas))
+    (bind ?n_dama_contrarias (cuantas_damas ?contrarias))
+    
+    (bind ?dif_peones (- ?n_peon_aliadas ?n_peon_contrarias))
+    (bind ?dif_damas (- ?n_dama_aliadas ?n_dama_contrarias))
+    
+    (bind ?dif_peones (* ?*HEU_PESO_PEONES* ?dif_peones))
+    (bind ?dif_damas (* ?*HEU_PESO_DAMAS* ?dif_damas))
+    
+    (return (+ ?dif_peones ?dif_damas))
 )
 
 ; Funcion para el heuristico.
