@@ -847,14 +847,16 @@
         (assert (eliminar_posibles))
     ; Hay que realizar la busqueda (hay IA)...
     else
-        (bind ?num_piezas (+ (length$ $?blancas) (length $?negras)))
+        (bind ?num_piezas (+ (cuantas_peones $?blancas) (cuantas_peones $?negras)))
         ; Dependiendo del numero de piezas... cambiamos la profundidad de busqueda.
         ; TODO: cambiar para mas valores? PROBAR!
         (if (>= ?num_piezas 10) then
-            (bind ?*MAX_PROF* 4)
-        else
+            (bind ?*MAX_PROF* 3)
+        else (if (>= ?num_piezas 8) then
             (bind ?*MAX_PROF* 6)
-        )
+        else
+            (bind ?*MAX_PROF* 4)
+        ))
 
         (printout t "=> Profundidad: " ?*MAX_PROF* crlf)
         
@@ -1026,7 +1028,6 @@
     ; Si Alfa > Beta:
     ; => Podamos, omitimos resto de hijos y el padre del actual es nuevo actual.
     (if (> ?nuevo_alfa_a ?nuevo_beta_a) then
-        (printout t "=> PODANDO... " ?nuevo_alfa_a " " ?nuevo_beta_a)
         (bind ?nodo_actual ?id_abuelo)
         (if (not ?nodo_actual) then
             (bind ?nodo_actual 0)
