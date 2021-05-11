@@ -527,8 +527,9 @@
             )
         )
 
+
         ; Se pide la ficha a mover (origen)
-        (printout t crlf)
+        (printout t "|" crlf)
         (printout t "=> Que ficha quieres mover? xy: ")
         (bind ?pieza (str-cat (read)))
 
@@ -536,11 +537,6 @@
         (if (eq ?pieza "q") then
             (assert (salir))
             (return)
-        )
-
-        ; TODO: borrar???
-        (if (eq (length ?pieza) 3) then
-            (bind ?pieza (str-cat (sub-string 1 1 ?pieza) (sub-string 3 3 ?pieza)))
         )
 
         ; Comprobamos si la pieza introducida es una de las posibles.
@@ -562,14 +558,9 @@
             )
 
             ; Pedimos a que posicion la quiere mover.
-            (printout t crlf)
+            (printout t "|" crlf)
             (printout t "=> A que posicion quieres moverla? xy: ")
             (bind ?posicion (str-cat (read)))
-            
-            ; TODO: borrar???
-            (if (eq (length ?posicion) 3) then
-                (bind ?posicion (str-cat (sub-string 1 1 ?posicion) (sub-string 3 3 ?posicion)))
-            )
             
             ; Comprobamos si el movimiento introducido es valido,
             ; casilla origen y destino existen en los posibles.
@@ -630,6 +621,9 @@
 (defrule turno
     ?t <- (tablero (blancas $?b) (negras $?n))
     =>
+    (bind ?peones_blancas (cuantas_peones $?b))
+    (bind ?peones_negras (cuantas_peones $?n))
+
     (bind ?damas_blancas (cuantas_damas $?b))
     (bind ?damas_negras (cuantas_damas $?n))
     
@@ -642,6 +636,18 @@
         (assert (ganan_negras))
         (return)
     )
+
+    ; Cuando los dos solo tienen una ficha... gana quien mas damas tiene, si no, tablas.
+    (if (and (eq ?peones_blancas 1) (eq ?peones_negras 1)) then
+        (if (> ?damas_blancas ?damas_negras) then
+            (assert (ganan_blancas))
+        else (if (< ?damas_blancas ?damas_negras) then
+            (assert (ganan_negras))
+        else
+            (assert (tablas))
+        ))
+        (return)
+    )
     
     (bind ?pos_mov (movimientos $?b $?n ?*TURNO* FALSE))
     ; No es posible ningun movimiento... fin del juego.
@@ -649,14 +655,11 @@
         ; Comprobamos quien ha ganado...
         (if (> ?damas_blancas ?damas_negras) then
             (assert (ganan_blancas))
-        else
+        else (if (< ?damas_blancas ?damas_negras) then
             (assert (ganan_negras))
-        )
-        ;(if (eq ?*TURNO* FALSE) then
-        ;    (assert(ganan_blancas))
-        ;else
-        ;    (assert(ganan_negras))
-        ;)
+        else
+            (assert (tablas))
+        ))
     else
         (bind ?r (turno $?b $?n FALSE))
         ; Turno jugador completado...
@@ -1173,7 +1176,6 @@
     (crear_tablero)
 )
 
-; TODO: cambiar salience y orden de las reglas???
 (defrule ganan_blancas
     (declare(salience 101))
     ?w <- (tablero (blancas $?b) (negras $?n))
@@ -1181,7 +1183,7 @@
     =>
     (assert(fin_juego))
     (print_tablero $?b $?n)
-    (printout t "Han ganado las blancas!!!" crlf)
+    (printout t "=> Han ganado las blancas!!!" crlf)
     (retract ?w)
 )
 
@@ -1190,9 +1192,19 @@
     ?m <- (tablero (blancas $?b) (negras $?n))
     (ganan_negras)
     =>
-    (assert(fin_juego))
+    (assert (fin_juego))
     (print_tablero $?b $?n)
-    (printout t "Han ganado las negras!!!" crlf)
+    (printout t "=> Han ganado las negras!!!" crlf)
+    (retract ?m)
+)
+
+(defrule tablas
+    ?m <- (tablero (blancas $?b) (negras $?n))
+    (tablas)
+    =>
+    (assert (fin_juego))
+    (print_tablero $?b $?n)
+    (printout t "=> Tablas!!!" crlf)
     (retract ?m)
 )
 
@@ -1201,7 +1213,7 @@
 (defrule fin_juego
     (fin_juego)
     =>
-    (printout t "Fin del juego!" crlf )
+    (printout t "=> Fin del juego!" crlf )
     (halt)
 )
 
@@ -1218,13 +1230,13 @@
 (deffunction pedir_param()
     (bind ?tam -1)
     (while (or (< ?tam 4) (> ?tam 9) (not (= 0 (mod ?tam 2)))) do
-        (printout t "Introduce el tamaño del tablero (> 3 & < 10 & par): ")
+        (printout t "=> Introduce el tamaño del tablero (> 3 & < 10 & par): ")
         (bind ?tam (read))
     )
     (bind ?*DIM* ?tam)
     (bind ?exit FALSE)
     (while TRUE
-        (printout t "¿Juegas con blancas o negras? (b/n): ")
+        (printout t "=> Juegas con blancas o negras? (b/n): ")
         (bind ?color (read))
         (if (= 0 (str-compare "b" (lowcase ?color))) then
             (bind ?*COLOR_JUG* TRUE)
