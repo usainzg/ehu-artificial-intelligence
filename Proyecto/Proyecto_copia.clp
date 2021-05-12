@@ -21,12 +21,16 @@
     ?*INF* = 99999
     ?*M_INF* = -99999
 
-    ; Globales para heuristico
-    ?*HEU_VALOR_PEON* = 1
-    ?*HEU_VALOR_DAMA* = 2
+    ; Globales para heuristico:
+    ; Pesos para funcion de evaluacion.
+    ?*HEU_PESO_PEONES_EV* = 25
+    ?*HEU_PESO_DAMAS_EV* = 50
+    ?*HEU_FICHAS_EV* = 10
 
-    ?*HEU_PESO_PEONES* = 25
-    ?*HEU_PESO_DAMAS* = 50
+    ; Pesos para funcion de utilidad.
+    ?*HEU_PESO_PEONES_UT* = 100
+    ?*HEU_PESO_DAMAS_UT* = 250
+    ?*HEU_FICHAS_UT* = 50
 )
 
 ; ==================> TEMPLATES GENERALES <==================
@@ -86,6 +90,32 @@
     (return ?res)
 )
 
+; Funcion auxiliar que devuelve el tipo de la ?pieza.
+(deffunction tipo_pieza (?pieza)
+    (return (sub-string 1 1 ?pieza))
+)
+
+; Funcion auxiliar para calcular el numero de piezas de tipo == ?tipo.
+(deffunction cuantas_piezas_tipo (?piezas ?tipo)
+    (bind ?sum 0)
+    (foreach ?pieza ?piezas
+        (if (eq ?tipo (tipo_pieza ?pieza)) then
+            (bind ?sum (+ ?sum 1))
+        )
+    )
+    (return ?sum)
+)
+
+; Funcion auxiliar para saber cuantas damas hay.
+(deffunction cuantas_damas (?piezas)
+    (return (cuantas_piezas_tipo ?piezas ?*FICHA_DAMA*))
+)
+
+; Funcion auxiliar para saber cuantos peones hay.
+(deffunction cuantas_peones (?piezas)
+    (return (cuantas_piezas_tipo ?piezas ?*FICHA_PEON*))
+)
+
 ; Funcion auxiliar para mostrar el tablero.
 ; => Columna 0, Fila 0: se usan como indicadores (etiquetas).
 ; => Se va mostrando el tablero de forma progresiva formando lineas y
@@ -137,59 +167,31 @@
         )
         (printout t ?linea crlf)
     )
-)
 
-; Funcion auxiliar que devuelve el tipo de la ?pieza.
-(deffunction tipo_pieza (?pieza)
-    (return (sub-string 1 1 ?pieza))
-)
-
-; Funcion auxiliar para calcular el numero de piezas de tipo == ?tipo.
-(deffunction cuantas_piezas_tipo (?piezas ?tipo)
-    (bind ?sum 0)
-    (foreach ?pieza ?piezas
-        (if (eq ?tipo (tipo_pieza ?pieza)) then
-            (bind ?sum (+ ?sum 1))
-        )
-    )
-    (return ?sum)
-)
-
-; Funcion auxiliar para saber cuantas damas hay.
-(deffunction cuantas_damas (?piezas)
-    (return (cuantas_piezas_tipo ?piezas ?*FICHA_DAMA*))
-)
-
-; Funcion auxiliar para saber cuantos peones hay.
-(deffunction cuantas_peones (?piezas)
-    (return (cuantas_piezas_tipo ?piezas ?*FICHA_PEON*))
+    (printout t "=> Damas blancas: " (cuantas_damas ?blancas) crlf)
+    (printout t "=> Damas negras: " (cuantas_damas ?negras) crlf)
 )
 
 ; ==================> PARTE DEL HEURISTICO <==================
 
-; Funcion que calcula el valor de las piezas usando los valores asignados
-; en las variables globales del heuristico.
-(deffunction calcular_valor_piezas (?piezas)
-    (bind ?peones (cuantas_peones ?piezas))
-    (bind ?valor_peones (* ?peones ?*HEU_VALOR_PEON*))
+; Le damos importancia a que tengas mas fichas que tu contrario, cada tipo
+; de ficha tiene un peso, tener mas damas vale mas.
+; Como pueden tener mismo numero de fichas y mismo tipo... premiamos mas fichas
+; aliadas.
+; => El parametro ?f_ev es un booleano que determina si se ejecuta con los pesos
+; de la funcion utilidad (al llegar a estado final), o con los pesos de la funcion
+; de evaluacion (al llegar a la profundidad maxima).
+(deffunction heuristico_numero_piezas (?aliadas ?contrarias ?f_ev)
+    (if ?f_ev then
+        (bind ?peso_peones ?*HEU_PESO_PEONES_EV*)
+        (bind ?peso_damas ?*HEU_PESO_DAMAS_EV*)
+        (bind ?peso_fichas_aliadas ?*HEU_FICHAS_EV*)
+    else
+        (bind ?peso_peones ?*HEU_PESO_PEONES_UT*)
+        (bind ?peso_damas ?*HEU_PESO_DAMAS_UT*)
+        (bind ?peso_fichas_aliadas ?*HEU_FICHAS_UT*)
+    )
 
-    ; Se premia mas damas, dado que valor por cada dama es mayor.
-    (bind ?damas (cuantas_damas ?piezas))
-    (bind ?valor_damas (* ?damas ?*HEU_VALOR_DAMA*))
-
-    (return (+ ?valor_peones ?valor_damas))
-)
-
-; Funcion que calcula la diferencia entre los valores de las piezas
-; aliadas y contrarias.
-(deffunction heuristico_diferencia (?aliadas ?contrarias)
-    (bind ?result_aliadas (calcular_valor_piezas ?aliadas))
-    (bind ?result_contrarias  (calcular_valor_piezas ?contrarias))
-    (bind ?resultado (- ?result_aliadas ?result_contrarias))
-    (return ?resultado)
-)
-
-(deffunction heuristico_numero_piezas (?aliadas ?contrarias)
     (bind ?n_peon_aliadas (cuantas_peones ?aliadas))
     (bind ?n_peon_contrarias (cuantas_peones ?contrarias))
     (bind ?n_dama_aliadas (cuantas_damas ?aliadas))
@@ -198,14 +200,16 @@
     (bind ?dif_peones (- ?n_peon_aliadas ?n_peon_contrarias))
     (bind ?dif_damas (- ?n_dama_aliadas ?n_dama_contrarias))
     
-    (bind ?dif_peones (* ?*HEU_PESO_PEONES* ?dif_peones))
-    (bind ?dif_damas (* ?*HEU_PESO_DAMAS* ?dif_damas))
+    (bind ?dif_peones (* ?peso_peones ?dif_peones))
+    (bind ?dif_damas (* ?peso_damas ?dif_damas))
     
-    (return (+ ?dif_peones ?dif_damas))
+    (bind ?diff (+ ?dif_peones ?dif_damas))
+    (bind ?peos_n_fichas (* ?peso_fichas_aliadas (+ ?n_peon_aliadas ?n_dama_aliadas)))
+    (return (+ ?diff ?peos_n_fichas))
 )
 
 ; Funcion para el heuristico.
-(deffunction heuristico (?blancas ?negras ?color)
+(deffunction heuristico (?blancas ?negras ?color ?f_ev)
     (if ?color then ; Si juego con blancas...
         (if (eq 0 (cuantas_peones ?negras)) then ; Si no hay del otro color => Ganar (INF)
             (return ?*INF*)
@@ -226,8 +230,8 @@
         (bind ?contrarias ?blancas)
     )
 
-    ; En caso de no estar estar en casos basicos, calcular heuristico diferencia de valores.
-    (return (heuristico_diferencia ?aliadas ?contrarias))
+    ; En caso de no estar estar en casos basicos, calcular heuristico diferencia de numero de piezas.
+    (return (heuristico_numero_piezas ?aliadas ?contrarias ?f_ev))
 )
 
 ; ==================> PARTE DEL JUEGO PARA JUGADOR <==================
@@ -819,7 +823,8 @@
     
     ; Si alguno de los lados no tiene PEONES, estado final, add heuristico.
     (if (or (= (cuantas_peones ?nuevas_blancas) 0) (= (cuantas_peones ?nuevas_negras) 0)) then
-        (bind ?heur (heuristico ?nuevas_blancas ?nuevas_negras (not ?*COLOR_JUG*)))
+        ; Se ejecuta el heuristico con los pesos de funcion utilidad.
+        (bind ?heur (heuristico ?nuevas_blancas ?nuevas_negras (not ?*COLOR_JUG*) FALSE))
 
         (return (assert (estado (id ?id) (id_padre ?id_padre) (nivel ?nivel) (valor ?heur)
                 (blancas ?nuevas_blancas) (negras ?nuevas_negras) (movimiento ?movimiento))))
@@ -833,7 +838,8 @@
     else
         ; Profundidad maxima alcanzada... estado final, anadir heuristico.
         (if (= ?nivel ?*MAX_PROF*) then
-            (bind ?heur (heuristico ?nuevas_blancas ?nuevas_negras (not ?*COLOR_JUG*)))
+            ; Se ejecuta el heuristico con los pesos de funcion de evaluacion.
+            (bind ?heur (heuristico ?nuevas_blancas ?nuevas_negras (not ?*COLOR_JUG*) TRUE))
         else
             (bind ?heur FALSE)
         )
@@ -996,7 +1002,8 @@
         
         ; Si estamos en profundidad maxima... calcular heuristico.
         (if (or (= ?nivel ?*MAX_PROF*) (eq 0 (length$ ?movimientos_opp))) then
-            (bind ?heur (heuristico $?blancas $?negras (not ?*COLOR_JUG*)))
+            ; Se calcula con funcion de evaluacion.
+            (bind ?heur (heuristico $?blancas $?negras (not ?*COLOR_JUG*) TRUE))
         else
             (bind ?heur FALSE)
         )
