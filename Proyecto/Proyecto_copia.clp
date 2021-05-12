@@ -921,9 +921,9 @@
         (bind ?num_piezas (+ (cuantas_peones $?blancas) (cuantas_peones $?negras)))
         ; Dependiendo del numero de piezas... cambiamos la profundidad de busqueda.
         ; TODO: cambiar para mas valores? PROBAR!
-        (if (>= ?num_piezas 8) then
+        (if (>= ?num_piezas 12) then
             (bind ?*MAX_PROF* 3)
-        else (if (>= ?num_piezas 6) then
+        else (if (>= ?num_piezas 8) then
             (bind ?*MAX_PROF* 4)
         else
             (bind ?*MAX_PROF* 6)
